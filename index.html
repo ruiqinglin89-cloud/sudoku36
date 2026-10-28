@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>数独闯关</title>
+<style>
+  :root{
+    --bg1:#1a2340; --bg2:#0e1428;
+    --panel:#1e2a4a; --panel2:#263357;
+    --line:#3a4a7a; --thick:#5a6ea8;
+    --text:#e8ecff; --dim:#8fa0d0;
+    --accent:#5b8cff; --accent2:#7c5bff;
+    --good:#3ddc97; --bad:#ff6b7a; --given:#ffffff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:radial-gradient(1200px 800px at 70% -10%,#2b3a6e 0%,var(--bg1) 45%,var(--bg2) 100%);
+    color:var(--text); overflow:hidden; touch-action:manipulation;
+    user-select:none;-webkit-user-select:none;
+  }
+  .screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;overflow:hidden;}
+  .hidden{display:none !important;}
+
+  /* ---------- 主菜单 ---------- */
+  #menu{justify-content:center;gap:22px;padding:24px;}
+  .logo{font-size:min(13vw,64px);font-weight:800;letter-spacing:6px;
+    background:linear-gradient(135deg,#7db2ff,#b48cff 60%,#ff8ad0);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 40px rgba(120,140,255,.25);}
+  .logo small{display:block;text-align:center;font-size:14px;letter-spacing:10px;color:var(--dim);-webkit-text-fill-color:var(--dim);margin-top:6px;font-weight:400;}
+  .btn{
+    border:none;cursor:pointer;color:#fff;font-weight:700;
+    font-size:20px;padding:16px 54px;border-radius:999px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    box-shadow:0 8px 24px rgba(91,140,255,.35),inset 0 1px 0 rgba(255,255,255,.25);
+    transition:transform .12s;
+  }
+  .btn:active{transform:scale(.95);}
+  .btn.ghost{background:var(--panel2);box-shadow:none;font-size:16px;padding:12px 34px;}
+  .tip{color:var(--dim);font-size:13px;}
+
+  /* ---------- 选关 ---------- */
+  #levels{padding:0;}
+  .lv-head{width:100%;display:flex;align-items:center;gap:12px;padding:max(14px,env(safe-area-inset-top)) 16px 12px;}
+  .back{border:none;background:var(--panel2);color:var(--text);width:40px;height:40px;border-radius:12px;font-size:20px;cursor:pointer;flex:none;}
+  .lv-title{font-size:19px;font-weight:700;flex:1;}
+  .lv-scroll{width:100%;flex:1;overflow-y:auto;padding:4px 16px 40px;-webkit-overflow-scrolling:touch;}
+  .tier{margin:18px 4px 10px;font-size:15px;font-weight:700;color:var(--dim);display:flex;align-items:center;gap:10px;}
+  .tier::after{content:"";flex:1;height:1px;background:var(--line);}
+  .grid36{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;}
+  .lv{
+    aspect-ratio:1;border:none;border-radius:16px;cursor:pointer;position:relative;
+    background:linear-gradient(160deg,var(--panel2),var(--panel));
+    border:1px solid var(--line);color:var(--text);
+    font-size:19px;font-weight:700;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    transition:transform .1s;
+  }
+  .lv:active{transform:scale(.93);}
+  .lv .stars{font-size:10px;letter-spacing:1px;color:#ffd66b;line-height:1;}
+  .lv.locked{color:#56648f;background:var(--panel);cursor:default;}
+  .lv.locked .stars{color:#56648f;}
+  .lv.current{border-color:var(--accent);box-shadow:0 0 0 2px rgba(91,140,255,.35),0 6px 18px rgba(91,140,255,.25);}
+  .lv.done{background:linear-gradient(160deg,#2c3f73,#24325c);}
+
+  /* ---------- 游戏 ---------- */
+  #game{padding:0;}
+  .g-head{width:100%;display:flex;align-items:center;gap:10px;padding:max(10px,env(safe-area-inset-top)) 12px 6px;}
+  .pill{background:var(--panel2);border-radius:999px;padding:6px 14px;font-size:14px;font-weight:600;color:var(--dim);white-space:nowrap;}
+  .pill b{color:var(--text);font-variant-numeric:tabular-nums;}
+  .g-title{flex:1;text-align:center;font-weight:800;font-size:17px;}
+  .board-wrap{flex:1;width:100%;display:flex;align-items:center;justify-content:center;padding:6px 10px;min-height:0;}
+  #board{
+    display:grid;grid-template-columns:repeat(9,1fr);aspect-ratio:1;
+    width:min(94vw,58vh,560px);
+    background:var(--panel);border:2px solid var(--thick);border-radius:10px;overflow:hidden;
+  }
+  .cell{
+    display:flex;align-items:center;justify-content:center;
+    border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+    font-size:clamp(18px,5.4vmin,30px);font-weight:600;color:var(--accent);
+    cursor:pointer;position:relative;
+  }
+  .cell:nth-child(9n){border-right:none;}
+  .cell:nth-child(n+73){border-bottom:none;}
+  .cell.bR{border-right:2px solid var(--thick);}
+  .cell.bB{border-bottom:2px solid var(--thick);}
+  .cell.given{color:var(--given);}
+  .cell.same{background:rgba(91,140,255,.16);}
+  .cell.peer{background:rgba(91,140,255,.09);}
+  .cell.sel{background:rgba(91,140,255,.32);}
+  .cell.err{color:var(--bad);background:rgba(255,107,122,.16);}
+  .cell.hintflash{animation:hf .8s;}
+  @keyframes hf{0%{background:rgba(61,220,151,.6);}100%{background:transparent;}}
+  .cell .notes{
+    position:absolute;inset:1px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+    font-size:clamp(8px,2vmin,12px);font-weight:500;color:var(--dim);pointer-events:none;
+  }
+  .cell .notes span{display:flex;align-items:center;justify-content:center;}
+
+  .pad{width:100%;max-width:560px;padding:4px 12px max(14px,env(safe-area-inset-bottom));}
+  .tools{display:flex;gap:8px;margin-bottom:10px;}
+  .tool{
+    flex:1;border:1px solid var(--line);background:var(--panel2);color:var(--text);
+    border-radius:14px;padding:9px 0;font-size:14px;font-weight:600;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;gap:2px;transition:transform .1s;
+  }
+  .tool:active{transform:scale(.93);}
+  .tool small{font-size:11px;color:var(--dim);font-weight:400;}
+  .tool.on{background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent;}
+  .tool.on small{color:rgba(255,255,255,.8);}
+  .tool:disabled{opacity:.35;cursor:default;}
+  .nums{display:grid;grid-template-columns:repeat(9,1fr);gap:8px;}
+  .num{
+    aspect-ratio:1;border:none;border-radius:14px;cursor:pointer;
+    background:var(--panel2);border:1px solid var(--line);color:var(--text);
+    font-size:clamp(17px,4.6vmin,26px);font-weight:700;transition:transform .08s,opacity .2s;
+  }
+  .num:active{transform:scale(.9);}
+  .num.done{opacity:.18;pointer-events:none;}
+
+  /* ---------- 弹窗 ---------- */
+  .modal{position:fixed;inset:0;background:rgba(8,12,26,.72);backdrop-filter:blur(6px);
+    display:flex;align-items:center;justify-content:center;z-index:50;padding:24px;}
+  .card{
+    background:linear-gradient(165deg,var(--panel2),var(--panel));
+    border:1px solid var(--line);border-radius:24px;padding:30px 34px;text-align:center;
+    max-width:340px;width:100%;animation:pop .3s cubic-bezier(.2,1.4,.4,1);
+  }
+  @keyframes pop{from{transform:scale(.7);opacity:0;}}
+  .card h2{font-size:24px;margin-bottom:8px;}
+  .card .big-stars{font-size:38px;letter-spacing:6px;margin:10px 0 4px;color:#ffd66b;
+    text-shadow:0 0 24px rgba(255,214,107,.45);}
+  .card p{color:var(--dim);font-size:14px;margin-bottom:20px;line-height:1.7;}
+  .card .row{display:flex;gap:10px;justify-content:center;}
+</style>
+</head>
+<body>
+
+<!-- 主菜单 -->
+<div id="menu" class="screen">
+  <div class="logo">数 独 闯 关<small>SUDOKU ADVENTURE · 36关</small></div>
+  <button class="btn" id="btnStart">开始闯关</button>
+  <button class="btn ghost" id="btnContinue">继续游戏</button>
+  <div class="tip" id="progressTip"></div>
+</div>
+
+<!-- 选关 -->
+<div id="levels" class="screen hidden">
+  <div class="lv-head">
+    <button class="back" id="lvBack">‹</button>
+    <div class="lv-title">选择关卡</div>
+  </div>
+  <div class="lv-scroll" id="lvScroll"></div>
+</div>
+
+<!-- 游戏 -->
+<div id="game" class="screen hidden">
+  <div class="g-head">
+    <button class="back" id="gBack">‹</button>
+    <div class="g-title" id="gTitle">第1关</div>
+    <div class="pill">⏱ <b id="gTime">00:00</b></div>
+    <div class="pill">💡 <b id="gHint">3</b></div>
+  </div>
+  <div class="board-wrap"><div id="board"></div></div>
+  <div class="pad">
+    <div class="tools">
+      <button class="tool" id="tNote">✏️ 笔记<small>开关</small></button>
+      <button class="tool" id="tErase">⌫ 擦除</button>
+      <button class="tool" id="tHint">💡 提示<small id="hintLeft">剩3次</small></button>
+      <button class="tool" id="tUndo">↩︎ 撤销</button>
+    </div>
+    <div class="nums" id="nums"></div>
+  </div>
+</div>
+
+<!-- 通关弹窗 -->
+<div id="winModal" class="modal hidden">
+  <div class="card">
+    <h2 id="winTitle">恭喜通关！</h2>
+    <div class="big-stars" id="winStars">★★★</div>
+    <p id="winInfo"></p>
+    <div class="row">
+      <button class="btn ghost" id="winMenu">选关</button>
+      <button class="btn" id="winNext">下一关 ›</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const PUZZLES = [{"id": 1, "tier": 0, "puzzle": "408000000001834900960057430100508043203690805870302006024910087007426500000000604", "solution": "438269751751834962962157438196578243243691875875342196624915387387426519519783624"}, {"id": 2, "tier": 0, "puzzle": "957040068080050004203006700094021006700493002100560430009200601800610040510070283", "solution": "957342168681759324243186795394821576765493812128567439479238651832615947516974283"}, {"id": 3, "tier": 0, "puzzle": "010000640705904301600130708060009517209000406571600090807096005103407902026000070", "solution": "312875649785964321694132758468329517239751486571648293847296135153487962926513874"}, {"id": 4, "tier": 0, "puzzle": "600900000409082050281500093028700034100825006960001580750603841090410705000007009", "solution": "675934218439182657281576493528769134143825976967341582752693841396418725814257369"}, {"id": 5, "tier": 0, "puzzle": "080513000000607008700894315076081053000709000140350960623978001500206000000145030", "solution": "489513726351627498762894315976481253235769184148352967623978541514236879897145632"}, {"id": 6, "tier": 0, "puzzle": "060000900905000370002190468054863009683070150700514680837021500091000807006000090", "solution": "468732915915648372372195468154863729683279154729514683837921546291456837546387291"}, {"id": 7, "tier": 1, "puzzle": "082900700041075030075000091013000070450000083026000540560000918030190650008004320", "solution": "382941765941675832675382491813459276459726183726813549564237918237198654198564327"}, {"id": 8, "tier": 1, "puzzle": "810004200749006300060801074400009500607050803005400000980207030001900627006300098", "solution": "813794256749526381562831974438679512697152843125483769984267135351948627276315498"}, {"id": 9, "tier": 1, "puzzle": "260009348400560701017004000000001000070436010000900403000600170701093004546107039", "solution": "265719348483562791917384526634251987879436215152978463398645172721893654546127839"}, {"id": 10, "tier": 1, "puzzle": "000098075007013060096740003280400300054030090001002046400021650020560700960370000", "solution": "312698475547213968896745123289456317654137892731982546473821659128569734965374281"}, {"id": 11, "tier": 1, "puzzle": "081000704003970108000000362000105806008729400104306000419000000206091503805000940", "solution": "581632794623974158947518362792145836368729415154386279419853627276491583835267941"}, {"id": 12, "tier": 1, "puzzle": "000005000000109625260834010308000462040398070751000008010527046486903000000400000", "solution": "179265384834179625265834719398751462642398571751642938913527846486913257527486193"}, {"id": 13, "tier": 2, "puzzle": "090201530005000280000036009050004012008302700120700090200950000079000600081603050", "solution": "794281536365479281812536479657894312948312765123765894236957148579148623481623957"}, {"id": 14, "tier": 2, "puzzle": "705210804008075010020000000050040708009807100307020040000000060010980200502064309", "solution": "735216894948375612126498573251649738469837125387521946893752461614983257572164389"}, {"id": 15, "tier": 2, "puzzle": "004900006300010000980076020400530201507020908601098007050760019000040003100003000", "solution": "214985736376214895985376124498537261537621948621498357853762419762149583149853672"}, {"id": 16, "tier": 2, "puzzle": "100800000090506040004920060030240107005060200409075080060082709040701030000003008", "solution": "156834972297516843384927561638249157715368294429175386563482719842791635971653428"}, {"id": 17, "tier": 2, "puzzle": "009000050070005492635020000010540900400972103002038060000090070127800040060000800", "solution": "249781356871365492635429718318546927456972183792138564583694271127853649964217835"}, {"id": 18, "tier": 2, "puzzle": "003500004010630985590001000000050041180000359930040000000700093042096010300005400", "solution": "623589174417632985598471236276953841184267359935148762851724693742396518369815427"}, {"id": 19, "tier": 3, "puzzle": "000000105000080293200075400000610000617040509000029000001930002934050000702000000", "solution": "486293175175486293293175486529617348617348529348529617861934752934752861752861934"}, {"id": 20, "tier": 3, "puzzle": "609000700000007005040000030003900682500286007826003100030004020900600000005000091", "solution": "659832714382417965147569238473951682591286347826743159738194526914625873265378491"}, {"id": 21, "tier": 3, "puzzle": "900000001000300560025000398002107004000090000700803200156000920874002000200000007", "solution": "983526741417389562625714398592167834348295176761843259156478923874932615239651487"}, {"id": 22, "tier": 3, "puzzle": "000240060010389000402000930000500080000813000030002007081000502000168090040025000", "solution": "893247165516389724472651938924576381765813249138492657681934572257168493349725816"}, {"id": 23, "tier": 3, "puzzle": "840500002005030604301600000690000208007010000100000053000001806208040300000006045", "solution": "846597132975132684321684597694753218537218469182469753459371826268945371713826945"}, {"id": 24, "tier": 3, "puzzle": "000800074700520860008900000090704300007080600003601040000008100002079003970005000", "solution": "325816974749523861618947532196754328457382619283691745534268197862179453971435286"}, {"id": 25, "tier": 4, "puzzle": "080020000007080006605007803000000709003010540204000000509700620100040000000000090", "solution": "381625974497381256625497813816254739973816542254973168549738621162549387738162495"}, {"id": 26, "tier": 4, "puzzle": "702008000000000061800030000970000000006341900000070086000010007610000020000805604", "solution": "752168439439257861861934752975682143286341975143579286528416397614793528397825614"}, {"id": 27, "tier": 4, "puzzle": "000025000090640200000008036900000800720109004005000001450800000006070020000360000", "solution": "364725189891643257572918436913456872728139564645287391457892613136574928289361745"}, {"id": 28, "tier": 4, "puzzle": "030000080001000200490203000009000060000897000540000800000605071017000000602900040", "solution": "235716489761489253498253716879534162126897534543162897384625971917348625652971348"}, {"id": 29, "tier": 4, "puzzle": "006008090250030410000000208073004000002050960000000500601000000035070001040200000", "solution": "416528397258937416397146258573694182182753964964812573621385749835479621749261835"}, {"id": 30, "tier": 4, "puzzle": "208600400000108006905040000150060000000804000000010090006080509000400000007901300", "solution": "218695437473128956965743281152369748639874125784512693346287519591436872827951364"}, {"id": 31, "tier": 5, "puzzle": "000010283300060000904000000040001070009000506070000900000000604000030000758090000", "solution": "567419283382765419914283765645921378129378546873546921231857694496132857758694132"}, {"id": 32, "tier": 5, "puzzle": "000000006800050047065407900006004050000010000080200000003009060100085002000000000", "solution": "472891536819356247365427981236974158947518623581263794723149865194685372658732419"}, {"id": 33, "tier": 5, "puzzle": "000096000006034002050000900703800000000000000000029004005000070800300401007140800", "solution": "128796345976534182354218967743851296269473518581629734415982673892367451637145829"}, {"id": 34, "tier": 5, "puzzle": "003000951000087600000000030000700009007250300500008000030004000000010080740600000", "solution": "873462951915387642624591837381746529467259318592138476139874265256913784748625193"}, {"id": 35, "tier": 5, "puzzle": "090070050054000000700000108000400006040856001500091000000000005000000460062080070", "solution": "198273654654918723723564198931427586247856931586391247379642815815739462462185379"}, {"id": 36, "tier": 5, "puzzle": "000257090000000000064108000006400000010020070000096300000000950000000004070641000", "solution": "138257496257964813964138725796413582413825679825796341641382957382579164579641238"}];
+const TIERS = ["新手","简单","中等","困难","专家","大师"];
+const TOTAL = PUZZLES.length;
+const LS_KEY = "sudoku36_v1";
+
+/* ---------- 存档 ---------- */
+function loadSave(){
+  try{ return JSON.parse(localStorage.getItem(LS_KEY)) || {}; }catch(e){ return {}; }
+}
+function store(){ localStorage.setItem(LS_KEY, JSON.stringify(save)); }
+let save = loadSave();
+save.stars = save.stars || {};       // {levelId: 1..3}
+save.unlocked = save.unlocked || 1;  // 已解锁到第几关（含）
+save.noteMode = !!save.noteMode;
+
+/* ---------- 界面切换 ---------- */
+const $ = id => document.getElementById(id);
+function show(id){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.add("hidden"));
+  $(id).classList.remove("hidden");
+}
+function refreshMenu(){
+  const done = Object.keys(save.stars).length;
+  $("progressTip").textContent = done
+    ? `已通过 ${done} / ${TOTAL} 关 · 最高纪录自动保存`
+    : "共 36 关 · 六个难度章节 · 进度自动保存";
+  $("btnContinue").style.display = done ? "" : "none";
+}
+
+/* ---------- 选关 ---------- */
+function buildLevels(){
+  const sc = $("lvScroll"); sc.innerHTML = "";
+  for(let t = 0; t < 6; t++){
+    const h = document.createElement("div");
+    h.className = "tier"; h.textContent = `第${"一二三四五六"[t]}章 · ${TIERS[t]}`;
+    sc.appendChild(h);
+    const g = document.createElement("div"); g.className = "grid36";
+    PUZZLES.filter(p=>p.tier===t).forEach(p=>{
+      const b = document.createElement("button");
+      b.className = "lv";
+      const st = save.stars[p.id] || 0;
+      if(st) b.classList.add("done");
+      if(p.id === save.unlocked && !st) b.classList.add("current");
+      if(p.id > save.unlocked) b.classList.add("locked");
+      const star = n => "★".repeat(n) + '<span style="opacity:.25">'+"★".repeat(3-n)+"</span>";
+      b.innerHTML = p.id > save.unlocked
+        ? `<span style="font-size:16px">🔒</span>`
+        : `<span>${p.id}</span><span class="stars">${star(st)}</span>`;
+      if(p.id <= save.unlocked) b.onclick = ()=>startLevel(p.id);
+      g.appendChild(b);
+    });
+    sc.appendChild(g);
+  }
+}
+
+/* ---------- 游戏逻辑 ---------- */
+const G = {
+  id:0, puzzle:null, solution:null,
+  grid:[],       // 当前数字
+  notes:[],      // 每格 Set
+  fixed:[],      // 是否题目给定
+  err:[],        // 是否填错
+  sel:-1, note:false,
+  hintsLeft:3, mistakes:0, undo:[],
+  t0:0, timer:null, paused:false
+};
+
+function startLevel(id){
+  const p = PUZZLES.find(x=>x.id===id);
+  G.id = id; G.puzzle = p.puzzle; G.solution = p.solution;
+  G.grid = []; G.notes = []; G.fixed = []; G.err = [];
+  for(let i = 0; i < 81; i++){
+    const v = +p.puzzle[i];
+    G.grid.push(v); G.fixed.push(v !== 0); G.err.push(false);
+    G.notes.push(new Set());
+  }
+  G.sel = -1; G.hintsLeft = 3; G.mistakes = 0; G.undo = [];
+  G.note = save.noteMode; G.t0 = Date.now(); G.paused = false;
+  $("gTitle").textContent = `第${id}关 · ${TIERS[p.tier]}`;
+  $("gHint").textContent = G.hintsLeft;
+  $("hintLeft").textContent = "剩"+G.hintsLeft+"次";
+  $("tNote").classList.toggle("on", G.note);
+  buildBoard(); buildNums(); highlight(); render();
+  clearInterval(G.timer);
+  G.timer = setInterval(tick, 1000); tick();
+  show("game");
+}
+function tick(){
+  if(G.paused) return;
+  const s = Math.floor((Date.now()-G.t0)/1000);
+  $("gTime").textContent = String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");
+}
+
+/* 棋盘 */
+function buildBoard(){
+  const b = $("board"); b.innerHTML = "";
+  for(let i = 0; i < 81; i++){
+    const c = document.createElement("div");
+    c.className = "cell";
+    const r = i/9|0, col = i%9;
+    if(col%3===2 && col!==8) c.classList.add("bR");
+    if(r%3===2 && r!==8) c.classList.add("bB");
+    c.onclick = ()=>select(i);
+    b.appendChild(c);
+  }
+}
+function buildNums(){
+  const n = $("nums"); n.innerHTML = "";
+  for(let v = 1; v <= 9; v++){
+    const b = document.createElement("button");
+    b.className = "num"; b.textContent = v; b.dataset.v = v;
+    b.onclick = ()=>inputNum(v);
+    n.appendChild(b);
+  }
+}
+function select(i){
+  if(G.fixed[i]) { G.sel = i; }
+  else {
+    G.sel = i;
+    if(!G.grid[i]) G.sel = i;
+  }
+  highlight(); render();
+}
+function highlight(){
+  document.querySelectorAll(".cell").forEach((el,i)=>{
+    el.classList.remove("same","peer","sel");
+    const r=i/9|0, c=i%9, sr=G.sel/9|0, sc=G.sel%9;
+    if(G.sel>=0){
+      if(i===G.sel) el.classList.add("sel");
+      else if(G.grid[i] && G.grid[i]===G.grid[G.sel]) el.classList.add("same");
+      else if(r===sr||c===sc||(r/3|0)===(sr/3|0)&&(c/3|0)===(sc/3|0)) el.classList.add("peer");
+    }
+  });
+}
+function render(){
+  const cells = document.querySelectorAll(".cell");
+  const count = {};
+  for(let i=0;i<81;i++) if(G.grid[i]) count[G.grid[i]]=(count[G.grid[i]]||0)+1;
+  cells.forEach((el,i)=>{
+    el.innerHTML = "";
+    el.classList.toggle("given", G.fixed[i]);
+    el.classList.toggle("err", G.err[i]);
+    if(G.grid[i]){
+      el.textContent = G.grid[i];
+    }else if(G.notes[i].size){
+      const d = document.createElement("div"); d.className="notes";
+      for(let v=1; v<=9; v++){
+        const s=document.createElement("span");
+        if(G.notes[i].has(v)) s.textContent=v;
+        d.appendChild(s);
+      }
+      el.appendChild(d);
+    }
+  });
+  document.querySelectorAll(".num").forEach(b=>{
+    b.classList.toggle("done", count[b.dataset.v]===9);
+  });
+}
+
+/* 输入 */
+function pushUndo(i){
+  G.undo.push({i, v:G.grid[i], notes:[...G.notes[i]], err:G.err[i]});
+  if(G.undo.length>200) G.undo.shift();
+}
+function inputNum(v){
+  const i = G.sel;
+  if(i<0 || G.fixed[i]) return;
+  if(G.note){
+    if(G.grid[i]) return;
+    pushUndo(i);
+    G.notes[i].has(v) ? G.notes[i].delete(v) : G.notes[i].add(v);
+    render(); return;
+  }
+  if(G.grid[i]===v && !G.err[i]) return;
+  pushUndo(i);
+  G.grid[i]=v;
+  G.notes[i].clear();
+  if(v === +G.solution[i]){
+    G.err[i]=false;
+    // 自动清理同行列宫的笔记
+    const r=i/9|0, c=i%9;
+    for(let j=0;j<81;j++){
+      const jr=j/9|0, jc=j%9;
+      if(j!==i && (jr===r||jc===c||(jr/3|0)===(r/3|0)&&(jc/3|0)===(c/3|0)))
+        if(G.notes[j].delete(v)){ /* 笔记变化无需撤销记录 */ }
+    }
+  }else{
+    G.err[i]=true; G.mistakes++;
+    if(navigator.vibrate) navigator.vibrate(60);
+  }
+  highlight(); render();
+  checkWin();
+}
+function erase(){
+  const i=G.sel;
+  if(i<0||G.fixed[i]||(!G.grid[i]&&!G.notes[i].size)) return;
+  pushUndo(i);
+  G.grid[i]=0; G.err[i]=false; G.notes[i].clear();
+  render(); highlight();
+}
+function undo(){
+  const u=G.undo.pop();
+  if(!u) return;
+  G.grid[u.i]=u.v; G.notes[u.i]=new Set(u.notes); G.err[u.i]=u.err;
+  G.sel=u.i;
+  render(); highlight();
+}
+function hint(){
+  if(G.hintsLeft<=0) return;
+  // 优先当前格，否则找一个空格
+  let i = (G.sel>=0 && !G.fixed[G.sel] && G.grid[G.sel]!==+G.solution[G.sel]) ? G.sel : -1;
+  if(i<0){
+    for(let j=0;j<81;j++) if(!G.fixed[j] && G.grid[j]!==+G.solution[j]){ i=j; break; }
+  }
+  if(i<0) return;
+  G.hintsLeft--;
+  $("gHint").textContent=G.hintsLeft;
+  $("hintLeft").textContent="剩"+G.hintsLeft+"次";
+  pushUndo(i);
+  G.grid[i]=+G.solution[i]; G.err[i]=false; G.notes[i].clear();
+  G.sel=i;
+  const cells=document.querySelectorAll(".cell");
+  cells[i].classList.remove("hintflash"); void cells[i].offsetWidth; cells[i].classList.add("hintflash");
+  render(); highlight();
+  checkWin();
+}
+function checkWin(){
+  for(let i=0;i<81;i++) if(G.grid[i]!==+G.solution[i]) return;
+  clearInterval(G.timer);
+  const sec=Math.floor((Date.now()-G.t0)/1000);
+  const par=[300,420,600,840,1200,1800][PUZZLES.find(p=>p.id===G.id).tier];
+  let stars=3;
+  if(G.mistakes>1||sec>par) stars=2;
+  if(G.mistakes>4||G.hintsLeft<2||sec>par*1.8) stars=Math.min(stars,2);
+  if(G.mistakes>6||G.hintsLeft<1) stars=1;
+  const prev=save.stars[G.id]||0;
+  save.stars[G.id]=Math.max(prev,stars);
+  save.unlocked=Math.max(save.unlocked,Math.min(G.id+1,TOTAL));
+  store();
+  $("winTitle").textContent = G.id===TOTAL ? "🏆 全部通关！" : "恭喜通关！";
+  $("winStars").textContent="★".repeat(stars)+"☆".repeat(3-stars);
+  $("winInfo").innerHTML=`第${G.id}关 · ${TIERS[PUZZLES.find(p=>p.id===G.id).tier]}<br>用时 ${Math.floor(sec/60)}分${sec%60}秒 · 错误 ${G.mistakes} 次 · 提示剩 ${G.hintsLeft} 次`;
+  $("winNext").style.display = G.id===TOTAL ? "none" : "";
+  setTimeout(()=>$("winModal").classList.remove("hidden"), 500);
+}
+
+/* ---------- 事件 ---------- */
+$("btnStart").onclick=()=>{ buildLevels(); show("levels"); };
+$("btnContinue").onclick=()=>{ buildLevels(); show("levels"); };
+$("lvBack").onclick=()=>{ refreshMenu(); show("menu"); };
+$("gBack").onclick=()=>{ clearInterval(G.timer); buildLevels(); show("levels"); };
+$("tNote").onclick=()=>{ G.note=!G.note; save.noteMode=G.note; store(); $("tNote").classList.toggle("on",G.note); };
+$("tErase").onclick=erase;
+$("tHint").onclick=hint;
+$("tUndo").onclick=undo;
+$("winMenu").onclick=()=>{ $("winModal").classList.add("hidden"); buildLevels(); show("levels"); };
+$("winNext").onclick=()=>{ $("winModal").classList.add("hidden"); startLevel(G.id+1); };
+
+/* 键盘（iPad 外接键盘也可用） */
+document.addEventListener("keydown",e=>{
+  if($("game").classList.contains("hidden")) return;
+  if(e.key>="1"&&e.key<="9") inputNum(+e.key);
+  else if(e.key==="Backspace"||e.key==="Delete") erase();
+  else if(e.key==="ArrowUp"&&G.sel>=9){G.sel-=9;highlight();render();}
+  else if(e.key==="ArrowDown"&&G.sel<72){G.sel+=9;highlight();render();}
+  else if(e.key==="ArrowLeft"&&G.sel%9>0){G.sel-=1;highlight();render();}
+  else if(e.key==="ArrowRight"&&G.sel%9<8){G.sel+=1;highlight();render();}
+  else if(e.key==="n"||e.key==="N") $("tNote").click();
+  else if(e.key==="h"||e.key==="H") hint();
+  else if((e.key==="z"||e.key==="Z")&&(e.ctrlKey||e.metaKey)) undo();
+});
+
+/* 禁止双击缩放 */
+document.addEventListener("dblclick",e=>e.preventDefault());
+document.addEventListener("gesturestart",e=>e.preventDefault());
+
+refreshMenu();
+show("menu");
+</script>
+</body>
+</html>

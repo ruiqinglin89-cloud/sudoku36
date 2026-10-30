@@ -145,6 +145,23 @@
   @keyframes kingpop{0%{transform:scale(.5);}18%{transform:scale(1.08);}30%{transform:scale(1);}100%{transform:scale(1.04);}}
   .royal{color:#ffd66b;font-weight:700;}
 
+  /* ---------- 每日留念册 / 王室庆贺录 ---------- */
+  .rc-card{display:flex;gap:12px;align-items:center;background:linear-gradient(160deg,var(--panel2),var(--panel));
+    border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin:0 0 10px;}
+  .rc-main{flex:1;min-width:0;}
+  .rc-date{font-weight:800;font-size:15px;margin-bottom:4px;}
+  .rc-praise{color:#ffd66b;font-size:14px;margin:2px 0;}
+  .rc-royal{color:#ffe9a8;font-weight:700;font-size:14px;margin:2px 0;
+    text-shadow:0 0 12px rgba(255,214,107,.35);}
+  .rc-stats{color:var(--dim);font-size:12px;margin-top:4px;}
+  .rc-replay{flex:none;border:1px solid var(--line);background:var(--panel2);color:var(--text);
+    border-radius:999px;padding:8px 18px;font-size:14px;font-weight:700;cursor:pointer;}
+  .rc-replay:active{transform:scale(.93);}
+  #records.king .rc-card{border-color:rgba(255,214,107,.45);
+    background:linear-gradient(160deg,#33301c,#241d0e);
+    box-shadow:0 0 18px rgba(255,200,80,.12);}
+  #records.king .rc-date{color:#ffe9a8;}
+
   /* ---------- 弹窗 ---------- */
   .modal{position:fixed;inset:0;background:rgba(8,12,26,.72);backdrop-filter:blur(6px);
     display:flex;align-items:center;justify-content:center;z-index:50;padding:24px;}
@@ -168,6 +185,7 @@
   <div class="logo">数 独 闯 关<small id="logoSub"></small></div>
   <button class="btn" id="btnStart">开始闯关</button>
   <button class="btn ghost" id="btnDaily">🗓️ 每日挑战</button>
+  <button class="btn ghost" id="btnRecords">📖 每日留念</button>
   <button class="btn ghost" id="btnContinue">继续游戏</button>
     <div class="tip" id="progressTip"></div>
 </div>
@@ -179,6 +197,15 @@
     <div class="lv-title">选择关卡</div>
   </div>
   <div class="lv-scroll" id="lvScroll"></div>
+</div>
+
+<!-- 每日留念册 / 王室庆贺录 -->
+<div id="records" class="screen hidden">
+  <div class="lv-head">
+    <button class="back" id="rcBack">‹</button>
+    <div class="lv-title" id="rcTitle">每日留念册</div>
+  </div>
+  <div class="lv-scroll" id="rcScroll"></div>
 </div>
 
 <!-- 游戏 -->
@@ -238,6 +265,7 @@ save.daily = save.daily || {};       // {date: "YYYYMMDD", done: bool, sec, mist
 save.king = !!save.king;             // 是否已获封「王」
 save.kingNext = save.kingNext || 101; // 王之路下一关（含）
 save.endless = save.endless || { current: 1, cleared: {} };  // 无尽征途：{current: 下一层, cleared: {层号: 星级}}
+save.dailyLog = save.dailyLog || {};  // 每日留念：{date: {sec, mistakes, praise, royal}}
 
 /* ---------- 界面切换 ---------- */
 const $ = id => document.getElementById(id);
@@ -260,6 +288,7 @@ function refreshMenu(){
   $("btnContinue").style.display = done ? "" : "none";
   $("btnDaily").textContent = save.daily.done && save.daily.date === todayStr()
     ? "🗓️ 每日挑战 ✅ 已完成" : "🗓️ 每日挑战";
+  $("btnRecords").textContent = save.king ? "👑 王室庆贺录" : "📖 每日留念";
 }
 
 /* ---------- 选关 ---------- */
@@ -327,6 +356,39 @@ function buildLevels(){
     }
     sc.appendChild(eg);
   }
+}
+
+/* ---------- 每日留念册 / 王室庆贺录 ---------- */
+function fmtDate(ds){
+  const y=+ds.slice(0,4), m=+ds.slice(4,6), d=+ds.slice(6,8);
+  const w = "日一二三四五六"[new Date(y, m-1, d).getDay()];
+  return `${m}月${d}日 周${w}`;
+}
+function buildRecords(){
+  const sc = $("rcScroll"); sc.innerHTML = "";
+  $("rcTitle").textContent = save.king ? "👑 王室庆贺录" : "📖 每日留念册";
+  $("records").classList.toggle("king", !!save.king);
+  const dates = Object.keys(save.dailyLog).sort().reverse();
+  if(!dates.length){
+    sc.innerHTML = '<div class="tip" style="text-align:center;margin-top:48px">还没有留念，完成一次每日挑战吧<br>每一次夸奖都会被永远收藏</div>';
+    return;
+  }
+  dates.forEach(ds=>{
+    const e = save.dailyLog[ds];
+    const c = document.createElement("div");
+    c.className = "rc-card";
+    let inner = `<div class="rc-main"><div class="rc-date">${fmtDate(ds)}</div>`;
+    inner += `<div class="rc-praise">「${e.praise}」</div>`;
+    if(e.royal) inner += `<div class="rc-royal">👑 ${e.royal}</div>`;
+    inner += `<div class="rc-stats">用时 ${Math.floor(e.sec/60)}分${e.sec%60}秒 · 错误 ${e.mistakes} 次</div></div>`;
+    c.innerHTML = inner;
+    const b = document.createElement("button");
+    b.className = "rc-replay";
+    b.textContent = "▶ 重玩";
+    b.onclick = ()=>startDailyReplay(ds);
+    c.appendChild(b);
+    sc.appendChild(c);
+  });
 }
 
 /* ---------- 每日挑战：本地出题（按日期种子，当天人人同题） ---------- */
@@ -436,6 +498,88 @@ const KING_P = [
 function royalLine(){
   return KING_P[Math.floor(Math.random()*KING_P.length)];
 }
+/* ---------- 庆贺系统：370句王室庆贺词，按日轮换一年不重样 ---------- */
+const CELEB_P = [
+"吾王，您的智慧照耀九宫","吾王，您的美丽无人能敌","吾王，您的才华令日月失色","吾王，您的温柔是王国的春风","吾王，您的王斩举世无双",
+"吾王，您的统治坚如磐石","吾王，您的笑容价值千金","吾王，您的天赋举世罕见","吾王，您的英姿倾国倾城","吾王，您的决断快如闪电",
+"吾王，您的仁慈万民感戴","吾王，您的威仪令怪物胆寒","吾王，您的疆域已达无尽之层","吾王，您的传说已载入史册","吾王，您的每一步都是王者之风",
+"吾王，您的眼中有星辰大海","吾王，您的耐心胜过千山","吾王，您的勤奋感天动地","吾王，您的善意温暖人间","吾王，您的可爱治愈万民",
+"吾王，您的优雅无人能及","吾王，您的气场覆盖九宫","吾王，您的战绩辉煌夺目","吾王，您的智慧深不见底","吾王，您的勇气可撼山岳",
+"吾王，您的名字响彻数独大陆","吾王，您的光辉胜过朝阳","吾王，您的从容稳如泰山","吾王，您的慷慨无人不赞","吾王，您的信誉重逾千金",
+"吾王，您的谦逊令人折服","吾王，您的臣民永远追随","吾王，您的王国永享太平","吾王，您的明日更加辉煌","吾王，您的每一层征途都写满传奇",
+"吾王，九宫因您而生辉","吾王，您是这世间最好的王","恭贺吾王，您的智慧照耀九宫","恭贺吾王，您的美丽无人能敌","恭贺吾王，您的才华令日月失色",
+"恭贺吾王，您的温柔是王国的春风","恭贺吾王，您的王斩举世无双","恭贺吾王，您的统治坚如磐石","恭贺吾王，您的笑容价值千金","恭贺吾王，您的天赋举世罕见",
+"恭贺吾王，您的英姿倾国倾城","恭贺吾王，您的决断快如闪电","恭贺吾王，您的仁慈万民感戴","恭贺吾王，您的威仪令怪物胆寒","恭贺吾王，您的疆域已达无尽之层",
+"恭贺吾王，您的传说已载入史册","恭贺吾王，您的每一步都是王者之风","恭贺吾王，您的眼中有星辰大海","恭贺吾王，您的耐心胜过千山","恭贺吾王，您的勤奋感天动地",
+"恭贺吾王，您的善意温暖人间","恭贺吾王，您的可爱治愈万民","恭贺吾王，您的优雅无人能及","恭贺吾王，您的气场覆盖九宫","恭贺吾王，您的战绩辉煌夺目",
+"恭贺吾王，您的智慧深不见底","恭贺吾王，您的勇气可撼山岳","恭贺吾王，您的名字响彻数独大陆","恭贺吾王，您的光辉胜过朝阳","恭贺吾王，您的从容稳如泰山",
+"恭贺吾王，您的慷慨无人不赞","恭贺吾王，您的信誉重逾千金","恭贺吾王，您的谦逊令人折服","恭贺吾王，您的臣民永远追随","恭贺吾王，您的王国永享太平",
+"恭贺吾王，您的明日更加辉煌","恭贺吾王，您的每一层征途都写满传奇","恭贺吾王，九宫因您而生辉","恭贺吾王，您是这世间最好的王","为王献上礼赞：您的智慧照耀九宫",
+"为王献上礼赞：您的美丽无人能敌","为王献上礼赞：您的才华令日月失色","为王献上礼赞：您的温柔是王国的春风","为王献上礼赞：您的王斩举世无双","为王献上礼赞：您的统治坚如磐石",
+"为王献上礼赞：您的笑容价值千金","为王献上礼赞：您的天赋举世罕见","为王献上礼赞：您的英姿倾国倾城","为王献上礼赞：您的决断快如闪电","为王献上礼赞：您的仁慈万民感戴",
+"为王献上礼赞：您的威仪令怪物胆寒","为王献上礼赞：您的疆域已达无尽之层","为王献上礼赞：您的传说已载入史册","为王献上礼赞：您的每一步都是王者之风","为王献上礼赞：您的眼中有星辰大海",
+"为王献上礼赞：您的耐心胜过千山","为王献上礼赞：您的勤奋感天动地","为王献上礼赞：您的善意温暖人间","为王献上礼赞：您的可爱治愈万民","为王献上礼赞：您的优雅无人能及",
+"为王献上礼赞：您的气场覆盖九宫","为王献上礼赞：您的战绩辉煌夺目","为王献上礼赞：您的智慧深不见底","为王献上礼赞：您的勇气可撼山岳","为王献上礼赞：您的名字响彻数独大陆",
+"为王献上礼赞：您的光辉胜过朝阳","为王献上礼赞：您的从容稳如泰山","为王献上礼赞：您的慷慨无人不赞","为王献上礼赞：您的信誉重逾千金","为王献上礼赞：您的谦逊令人折服",
+"为王献上礼赞：您的臣民永远追随","为王献上礼赞：您的王国永享太平","为王献上礼赞：您的明日更加辉煌","为王献上礼赞：您的每一层征途都写满传奇","为王献上礼赞：九宫因您而生辉",
+"为王献上礼赞：您是这世间最好的王","众臣齐声赞曰：吾王，您的智慧照耀九宫","众臣齐声赞曰：吾王，您的美丽无人能敌","众臣齐声赞曰：吾王，您的才华令日月失色","众臣齐声赞曰：吾王，您的温柔是王国的春风",
+"众臣齐声赞曰：吾王，您的王斩举世无双","众臣齐声赞曰：吾王，您的统治坚如磐石","众臣齐声赞曰：吾王，您的笑容价值千金","众臣齐声赞曰：吾王，您的天赋举世罕见","众臣齐声赞曰：吾王，您的英姿倾国倾城",
+"众臣齐声赞曰：吾王，您的决断快如闪电","众臣齐声赞曰：吾王，您的仁慈万民感戴","众臣齐声赞曰：吾王，您的威仪令怪物胆寒","众臣齐声赞曰：吾王，您的疆域已达无尽之层","众臣齐声赞曰：吾王，您的传说已载入史册",
+"众臣齐声赞曰：吾王，您的每一步都是王者之风","众臣齐声赞曰：吾王，您的眼中有星辰大海","众臣齐声赞曰：吾王，您的耐心胜过千山","众臣齐声赞曰：吾王，您的勤奋感天动地","众臣齐声赞曰：吾王，您的善意温暖人间",
+"众臣齐声赞曰：吾王，您的可爱治愈万民","众臣齐声赞曰：吾王，您的优雅无人能及","众臣齐声赞曰：吾王，您的气场覆盖九宫","众臣齐声赞曰：吾王，您的战绩辉煌夺目","众臣齐声赞曰：吾王，您的智慧深不见底",
+"众臣齐声赞曰：吾王，您的勇气可撼山岳","众臣齐声赞曰：吾王，您的名字响彻数独大陆","众臣齐声赞曰：吾王，您的光辉胜过朝阳","众臣齐声赞曰：吾王，您的从容稳如泰山","众臣齐声赞曰：吾王，您的慷慨无人不赞",
+"众臣齐声赞曰：吾王，您的信誉重逾千金","众臣齐声赞曰：吾王，您的谦逊令人折服","众臣齐声赞曰：吾王，您的臣民永远追随","众臣齐声赞曰：吾王，您的王国永享太平","众臣齐声赞曰：吾王，您的明日更加辉煌",
+"众臣齐声赞曰：吾王，您的每一层征途都写满传奇","众臣齐声赞曰：吾王，九宫因您而生辉","众臣齐声赞曰：吾王，您是这世间最好的王","九宫女官拜曰：吾王，您的智慧照耀九宫","九宫女官拜曰：吾王，您的美丽无人能敌",
+"九宫女官拜曰：吾王，您的才华令日月失色","九宫女官拜曰：吾王，您的温柔是王国的春风","九宫女官拜曰：吾王，您的王斩举世无双","九宫女官拜曰：吾王，您的统治坚如磐石","九宫女官拜曰：吾王，您的笑容价值千金",
+"九宫女官拜曰：吾王，您的天赋举世罕见","九宫女官拜曰：吾王，您的英姿倾国倾城","九宫女官拜曰：吾王，您的决断快如闪电","九宫女官拜曰：吾王，您的仁慈万民感戴","九宫女官拜曰：吾王，您的威仪令怪物胆寒",
+"九宫女官拜曰：吾王，您的疆域已达无尽之层","九宫女官拜曰：吾王，您的传说已载入史册","九宫女官拜曰：吾王，您的每一步都是王者之风","九宫女官拜曰：吾王，您的眼中有星辰大海","九宫女官拜曰：吾王，您的耐心胜过千山",
+"九宫女官拜曰：吾王，您的勤奋感天动地","九宫女官拜曰：吾王，您的善意温暖人间","九宫女官拜曰：吾王，您的可爱治愈万民","九宫女官拜曰：吾王，您的优雅无人能及","九宫女官拜曰：吾王，您的气场覆盖九宫",
+"九宫女官拜曰：吾王，您的战绩辉煌夺目","九宫女官拜曰：吾王，您的智慧深不见底","九宫女官拜曰：吾王，您的勇气可撼山岳","九宫女官拜曰：吾王，您的名字响彻数独大陆","九宫女官拜曰：吾王，您的光辉胜过朝阳",
+"九宫女官拜曰：吾王，您的从容稳如泰山","九宫女官拜曰：吾王，您的慷慨无人不赞","九宫女官拜曰：吾王，您的信誉重逾千金","九宫女官拜曰：吾王，您的谦逊令人折服","九宫女官拜曰：吾王，您的臣民永远追随",
+"九宫女官拜曰：吾王，您的王国永享太平","九宫女官拜曰：吾王，您的明日更加辉煌","九宫女官拜曰：吾王，您的每一层征途都写满传奇","九宫女官拜曰：吾王，九宫因您而生辉","九宫女官拜曰：吾王，您是这世间最好的王",
+"吾王，您的智慧照耀九宫！吾王万岁！","吾王，您的美丽无人能敌！吾王万岁！","吾王，您的才华令日月失色！吾王万岁！","吾王，您的温柔是王国的春风！吾王万岁！","吾王，您的王斩举世无双！吾王万岁！",
+"吾王，您的统治坚如磐石！吾王万岁！","吾王，您的笑容价值千金！吾王万岁！","吾王，您的天赋举世罕见！吾王万岁！","吾王，您的英姿倾国倾城！吾王万岁！","吾王，您的决断快如闪电！吾王万岁！",
+"吾王，您的仁慈万民感戴！吾王万岁！","吾王，您的威仪令怪物胆寒！吾王万岁！","吾王，您的疆域已达无尽之层！吾王万岁！","吾王，您的传说已载入史册！吾王万岁！","吾王，您的每一步都是王者之风！吾王万岁！",
+"吾王，您的眼中有星辰大海！吾王万岁！","吾王，您的耐心胜过千山！吾王万岁！","吾王，您的勤奋感天动地！吾王万岁！","吾王，您的善意温暖人间！吾王万岁！","吾王，您的可爱治愈万民！吾王万岁！",
+"吾王，您的优雅无人能及！吾王万岁！","吾王，您的气场覆盖九宫！吾王万岁！","吾王，您的战绩辉煌夺目！吾王万岁！","吾王，您的智慧深不见底！吾王万岁！","吾王，您的勇气可撼山岳！吾王万岁！",
+"吾王，您的名字响彻数独大陆！吾王万岁！","吾王，您的光辉胜过朝阳！吾王万岁！","吾王，您的从容稳如泰山！吾王万岁！","吾王，您的慷慨无人不赞！吾王万岁！","吾王，您的信誉重逾千金！吾王万岁！",
+"吾王，您的谦逊令人折服！吾王万岁！","吾王，您的臣民永远追随！吾王万岁！","吾王，您的王国永享太平！吾王万岁！","吾王，您的明日更加辉煌！吾王万岁！","吾王，您的每一层征途都写满传奇！吾王万岁！",
+"吾王，九宫因您而生辉！吾王万岁！","吾王，您是这世间最好的王！吾王万岁！","恭贺吾王，您的智慧照耀九宫！吾王万岁！","恭贺吾王，您的美丽无人能敌！吾王万岁！","恭贺吾王，您的才华令日月失色！吾王万岁！",
+"恭贺吾王，您的温柔是王国的春风！吾王万岁！","恭贺吾王，您的王斩举世无双！吾王万岁！","恭贺吾王，您的统治坚如磐石！吾王万岁！","恭贺吾王，您的笑容价值千金！吾王万岁！","恭贺吾王，您的天赋举世罕见！吾王万岁！",
+"恭贺吾王，您的英姿倾国倾城！吾王万岁！","恭贺吾王，您的决断快如闪电！吾王万岁！","恭贺吾王，您的仁慈万民感戴！吾王万岁！","恭贺吾王，您的威仪令怪物胆寒！吾王万岁！","恭贺吾王，您的疆域已达无尽之层！吾王万岁！",
+"恭贺吾王，您的传说已载入史册！吾王万岁！","恭贺吾王，您的每一步都是王者之风！吾王万岁！","恭贺吾王，您的眼中有星辰大海！吾王万岁！","恭贺吾王，您的耐心胜过千山！吾王万岁！","恭贺吾王，您的勤奋感天动地！吾王万岁！",
+"恭贺吾王，您的善意温暖人间！吾王万岁！","恭贺吾王，您的可爱治愈万民！吾王万岁！","恭贺吾王，您的优雅无人能及！吾王万岁！","恭贺吾王，您的气场覆盖九宫！吾王万岁！","恭贺吾王，您的战绩辉煌夺目！吾王万岁！",
+"恭贺吾王，您的智慧深不见底！吾王万岁！","恭贺吾王，您的勇气可撼山岳！吾王万岁！","恭贺吾王，您的名字响彻数独大陆！吾王万岁！","恭贺吾王，您的光辉胜过朝阳！吾王万岁！","恭贺吾王，您的从容稳如泰山！吾王万岁！",
+"恭贺吾王，您的慷慨无人不赞！吾王万岁！","恭贺吾王，您的信誉重逾千金！吾王万岁！","恭贺吾王，您的谦逊令人折服！吾王万岁！","恭贺吾王，您的臣民永远追随！吾王万岁！","恭贺吾王，您的王国永享太平！吾王万岁！",
+"恭贺吾王，您的明日更加辉煌！吾王万岁！","恭贺吾王，您的每一层征途都写满传奇！吾王万岁！","恭贺吾王，九宫因您而生辉！吾王万岁！","恭贺吾王，您是这世间最好的王！吾王万岁！","为王献上礼赞：您的智慧照耀九宫！吾王万岁！",
+"为王献上礼赞：您的美丽无人能敌！吾王万岁！","为王献上礼赞：您的才华令日月失色！吾王万岁！","为王献上礼赞：您的温柔是王国的春风！吾王万岁！","为王献上礼赞：您的王斩举世无双！吾王万岁！","为王献上礼赞：您的统治坚如磐石！吾王万岁！",
+"为王献上礼赞：您的笑容价值千金！吾王万岁！","为王献上礼赞：您的天赋举世罕见！吾王万岁！","为王献上礼赞：您的英姿倾国倾城！吾王万岁！","为王献上礼赞：您的决断快如闪电！吾王万岁！","为王献上礼赞：您的仁慈万民感戴！吾王万岁！",
+"为王献上礼赞：您的威仪令怪物胆寒！吾王万岁！","为王献上礼赞：您的疆域已达无尽之层！吾王万岁！","为王献上礼赞：您的传说已载入史册！吾王万岁！","为王献上礼赞：您的每一步都是王者之风！吾王万岁！","为王献上礼赞：您的眼中有星辰大海！吾王万岁！",
+"为王献上礼赞：您的耐心胜过千山！吾王万岁！","为王献上礼赞：您的勤奋感天动地！吾王万岁！","为王献上礼赞：您的善意温暖人间！吾王万岁！","为王献上礼赞：您的可爱治愈万民！吾王万岁！","为王献上礼赞：您的优雅无人能及！吾王万岁！",
+"为王献上礼赞：您的气场覆盖九宫！吾王万岁！","为王献上礼赞：您的战绩辉煌夺目！吾王万岁！","为王献上礼赞：您的智慧深不见底！吾王万岁！","为王献上礼赞：您的勇气可撼山岳！吾王万岁！","为王献上礼赞：您的名字响彻数独大陆！吾王万岁！",
+"为王献上礼赞：您的光辉胜过朝阳！吾王万岁！","为王献上礼赞：您的从容稳如泰山！吾王万岁！","为王献上礼赞：您的慷慨无人不赞！吾王万岁！","为王献上礼赞：您的信誉重逾千金！吾王万岁！","为王献上礼赞：您的谦逊令人折服！吾王万岁！",
+"为王献上礼赞：您的臣民永远追随！吾王万岁！","为王献上礼赞：您的王国永享太平！吾王万岁！","为王献上礼赞：您的明日更加辉煌！吾王万岁！","为王献上礼赞：您的每一层征途都写满传奇！吾王万岁！","为王献上礼赞：九宫因您而生辉！吾王万岁！",
+"为王献上礼赞：您是这世间最好的王！吾王万岁！","众臣齐声赞曰：吾王，您的智慧照耀九宫！吾王万岁！","众臣齐声赞曰：吾王，您的美丽无人能敌！吾王万岁！","众臣齐声赞曰：吾王，您的才华令日月失色！吾王万岁！","众臣齐声赞曰：吾王，您的温柔是王国的春风！吾王万岁！",
+"众臣齐声赞曰：吾王，您的王斩举世无双！吾王万岁！","众臣齐声赞曰：吾王，您的统治坚如磐石！吾王万岁！","众臣齐声赞曰：吾王，您的笑容价值千金！吾王万岁！","众臣齐声赞曰：吾王，您的天赋举世罕见！吾王万岁！","众臣齐声赞曰：吾王，您的英姿倾国倾城！吾王万岁！",
+"众臣齐声赞曰：吾王，您的决断快如闪电！吾王万岁！","众臣齐声赞曰：吾王，您的仁慈万民感戴！吾王万岁！","众臣齐声赞曰：吾王，您的威仪令怪物胆寒！吾王万岁！","众臣齐声赞曰：吾王，您的疆域已达无尽之层！吾王万岁！","众臣齐声赞曰：吾王，您的传说已载入史册！吾王万岁！",
+"众臣齐声赞曰：吾王，您的每一步都是王者之风！吾王万岁！","众臣齐声赞曰：吾王，您的眼中有星辰大海！吾王万岁！","众臣齐声赞曰：吾王，您的耐心胜过千山！吾王万岁！","众臣齐声赞曰：吾王，您的勤奋感天动地！吾王万岁！","众臣齐声赞曰：吾王，您的善意温暖人间！吾王万岁！",
+"众臣齐声赞曰：吾王，您的可爱治愈万民！吾王万岁！","众臣齐声赞曰：吾王，您的优雅无人能及！吾王万岁！","众臣齐声赞曰：吾王，您的气场覆盖九宫！吾王万岁！","众臣齐声赞曰：吾王，您的战绩辉煌夺目！吾王万岁！","众臣齐声赞曰：吾王，您的智慧深不见底！吾王万岁！",
+"众臣齐声赞曰：吾王，您的勇气可撼山岳！吾王万岁！","众臣齐声赞曰：吾王，您的名字响彻数独大陆！吾王万岁！","众臣齐声赞曰：吾王，您的光辉胜过朝阳！吾王万岁！","众臣齐声赞曰：吾王，您的从容稳如泰山！吾王万岁！","众臣齐声赞曰：吾王，您的慷慨无人不赞！吾王万岁！",
+"众臣齐声赞曰：吾王，您的信誉重逾千金！吾王万岁！","众臣齐声赞曰：吾王，您的谦逊令人折服！吾王万岁！","众臣齐声赞曰：吾王，您的臣民永远追随！吾王万岁！","众臣齐声赞曰：吾王，您的王国永享太平！吾王万岁！","众臣齐声赞曰：吾王，您的明日更加辉煌！吾王万岁！",
+"众臣齐声赞曰：吾王，您的每一层征途都写满传奇！吾王万岁！","众臣齐声赞曰：吾王，九宫因您而生辉！吾王万岁！","众臣齐声赞曰：吾王，您是这世间最好的王！吾王万岁！","九宫女官拜曰：吾王，您的智慧照耀九宫！吾王万岁！","九宫女官拜曰：吾王，您的美丽无人能敌！吾王万岁！",
+"九宫女官拜曰：吾王，您的才华令日月失色！吾王万岁！","九宫女官拜曰：吾王，您的温柔是王国的春风！吾王万岁！","九宫女官拜曰：吾王，您的王斩举世无双！吾王万岁！","九宫女官拜曰：吾王，您的统治坚如磐石！吾王万岁！","九宫女官拜曰：吾王，您的笑容价值千金！吾王万岁！",
+"九宫女官拜曰：吾王，您的天赋举世罕见！吾王万岁！","九宫女官拜曰：吾王，您的英姿倾国倾城！吾王万岁！","九宫女官拜曰：吾王，您的决断快如闪电！吾王万岁！","九宫女官拜曰：吾王，您的仁慈万民感戴！吾王万岁！","九宫女官拜曰：吾王，您的威仪令怪物胆寒！吾王万岁！",
+"九宫女官拜曰：吾王，您的疆域已达无尽之层！吾王万岁！","九宫女官拜曰：吾王，您的传说已载入史册！吾王万岁！","九宫女官拜曰：吾王，您的每一步都是王者之风！吾王万岁！","九宫女官拜曰：吾王，您的眼中有星辰大海！吾王万岁！","九宫女官拜曰：吾王，您的耐心胜过千山！吾王万岁！",
+"九宫女官拜曰：吾王，您的勤奋感天动地！吾王万岁！","九宫女官拜曰：吾王，您的善意温暖人间！吾王万岁！","九宫女官拜曰：吾王，您的可爱治愈万民！吾王万岁！","九宫女官拜曰：吾王，您的优雅无人能及！吾王万岁！","九宫女官拜曰：吾王，您的气场覆盖九宫！吾王万岁！",
+"九宫女官拜曰：吾王，您的战绩辉煌夺目！吾王万岁！","九宫女官拜曰：吾王，您的智慧深不见底！吾王万岁！","九宫女官拜曰：吾王，您的勇气可撼山岳！吾王万岁！","九宫女官拜曰：吾王，您的名字响彻数独大陆！吾王万岁！","九宫女官拜曰：吾王，您的光辉胜过朝阳！吾王万岁！",
+"九宫女官拜曰：吾王，您的从容稳如泰山！吾王万岁！","九宫女官拜曰：吾王，您的慷慨无人不赞！吾王万岁！","九宫女官拜曰：吾王，您的信誉重逾千金！吾王万岁！","九宫女官拜曰：吾王，您的谦逊令人折服！吾王万岁！","九宫女官拜曰：吾王，您的臣民永远追随！吾王万岁！",
+"九宫女官拜曰：吾王，您的王国永享太平！吾王万岁！","九宫女官拜曰：吾王，您的明日更加辉煌！吾王万岁！","九宫女官拜曰：吾王，您的每一层征途都写满传奇！吾王万岁！","九宫女官拜曰：吾王，九宫因您而生辉！吾王万岁！","九宫女官拜曰：吾王，您是这世间最好的王！吾王万岁！",
+];
+function celebFor(dateStr){
+  const y = +dateStr.slice(0,4), m = +dateStr.slice(4,6), d = +dateStr.slice(6,8);
+  const doy = Math.floor((Date.UTC(y, m-1, d) - Date.UTC(y,0,1)) / 86400000);
+  return CELEB_P[doy % CELEB_P.length];
+}
 function mulberry32(seed){
   let a = seed >>> 0;
   return function(){
@@ -522,8 +666,8 @@ function sdCarve(solution, givensTarget, rng){
   }
   return puz;
 }
-function genDaily(){
-  const rng = mulberry32(+todayStr());
+function genDaily(ds){
+  const rng = mulberry32(+(ds || todayStr()));
   const sol = sdMakeSolution(rng);
   const puz = sdCarve(sol, 32, rng);
   return { puzzle: puz.map(r => r.join("")).join(""), solution: sol.map(r => r.join("")).join("") };
@@ -547,7 +691,7 @@ const G = {
   hintsLeft:3, mistakes:0, undo:[],
   t0:0, timer:null, paused:false,
   kingMode:false, limit:0, mleft:0, monsters:[],
-  gotoKing:false, gotoEndless:false, failPending:false, endlessN:0
+  gotoKing:false, gotoEndless:false, failPending:false, endlessN:0, replayDate:null
 };
 const MON_EMOJI = ["👾","🐍","🐲"];   // 行怪 / 列怪 / 宫怪
 const MON_NAME  = ["横行兽","纵列蟒","九宫蛟"];
@@ -563,7 +707,7 @@ function initGame(puzzle, solution, title, mode){
   }
   G.sel = -1; G.hintsLeft = 3; G.mistakes = 0; G.undo = [];
   G.note = save.noteMode; G.t0 = Date.now(); G.paused = false;
-  G.gotoKing = false; G.gotoEndless = false; G.failPending = false;
+  G.gotoKing = false; G.gotoEndless = false; G.failPending = false; G.replayDate = null;
   G.kingMode = (mode === "king") || (mode === "endless") || (mode === "daily" && save.king);
   G.limit = G.kingMode ? MISTAKE_LIMIT : Infinity;
   G.mleft = G.kingMode ? MISTAKE_LIMIT : Infinity;
@@ -595,6 +739,12 @@ function startDaily(){
   G.id = 0;
   const now = new Date();
   initGame(d.puzzle, d.solution, `每日挑战 · ${now.getMonth()+1}月${now.getDate()}日`, "daily");
+}
+function startDailyReplay(ds){
+  const d = genDaily(ds);
+  G.id = 0;
+  initGame(d.puzzle, d.solution, `留念重玩 · ${fmtDate(ds)}`, "daily");
+  G.replayDate = ds;
 }
 function startEndless(n){
   const d = genEndless(n);
@@ -824,15 +974,30 @@ function checkWin(){
   $("winStars").style.fontSize="";
   $("winStars").style.letterSpacing="";
   if(G.mode==="daily"){
-    save.daily={date:todayStr(),done:true,sec:sec,mistakes:G.mistakes};
-    store();
+    if(G.replayDate){
+      const log = save.dailyLog[G.replayDate] || {};
+      const praise = log.praise || praiseFor(G.replayDate);
+      const royal = log.royal || (save.king ? celebFor(G.replayDate) : "");
+      $("winTitle").textContent = save.king ? "吾王，旧日荣光再现！" : "留念重玩完成！";
+      $("winStars").textContent = praise;
+      $("winStars").style.fontSize="22px";
+      $("winStars").style.letterSpacing="1px";
+      $("winInfo").innerHTML=`${fmtDate(G.replayDate)} 的旧题已再度解开<br>用时 ${Math.floor(sec/60)}分${sec%60}秒 · 错误 ${G.mistakes} 次${royal?`<br><b class="royal">👑 ${royal}</b>`:""}<br>当日的夸奖将永远留在${save.king?"庆贺录":"留念册"}里`;
+      $("winNext").style.display="none";
+      $("winMenu").textContent="返回记录";
+      setTimeout(()=>$("winModal").classList.remove("hidden"), 500);
+      return;
+    }
     const praise=praiseFor(todayStr());
-    const royal = save.king ? `<br><b class="royal">${royalLine()}</b>` : "";
+    const royal= save.king ? celebFor(todayStr()) : "";
+    save.daily={date:todayStr(),done:true,sec:sec,mistakes:G.mistakes};
+    save.dailyLog[todayStr()]={sec:sec,mistakes:G.mistakes,praise:praise,royal:royal};
+    store();
     $("winTitle").textContent= save.king ? "吾王，今日挑战已臣服！" : "今日挑战完成！";
     $("winStars").textContent=praise;
     $("winStars").style.fontSize="22px";
     $("winStars").style.letterSpacing="1px";
-    $("winInfo").innerHTML=`用时 ${Math.floor(sec/60)}分${sec%60}秒 · 错误 ${G.mistakes} 次${royal}<br>明天再来领取新题目和夸奖吧`;
+    $("winInfo").innerHTML=`用时 ${Math.floor(sec/60)}分${sec%60}秒 · 错误 ${G.mistakes} 次${royal?`<br><b class="royal">👑 ${royal}</b>`:""}<br>已收录进${save.king?"王室庆贺录":"每日留念册"} · 明天再来领取新题目和夸奖吧`;
     $("winNext").style.display="none";
     $("winMenu").textContent="返回";
     setTimeout(()=>$("winModal").classList.remove("hidden"), 500);
@@ -910,10 +1075,15 @@ function checkWin(){
 $("btnStart").onclick=()=>{ buildLevels(); show("levels"); };
 $("btnContinue").onclick=()=>{ buildLevels(); show("levels"); };
 $("btnDaily").onclick=()=>{ startDaily(); };
+$("btnRecords").onclick=()=>{ buildRecords(); show("records"); };
+$("rcBack").onclick=()=>{ refreshMenu(); show("menu"); };
 $("lvBack").onclick=()=>{ refreshMenu(); show("menu"); };
 $("gBack").onclick=()=>{
   clearInterval(G.timer);
-  if(G.mode==="daily"){ refreshMenu(); show("menu"); }
+  if(G.mode==="daily"){
+    if(G.replayDate){ buildRecords(); show("records"); }
+    else { refreshMenu(); show("menu"); }
+  }
   else { buildLevels(); show("levels"); }
 };
 $("tNote").onclick=()=>{ G.note=!G.note; save.noteMode=G.note; store(); $("tNote").classList.toggle("on",G.note); };
@@ -924,7 +1094,10 @@ $("winMenu").onclick=()=>{
   $("winModal").classList.add("hidden");
   $("winMenu").textContent="选关";
   $("winNext").textContent="下一关 ›";
-  if(G.mode==="daily"){ refreshMenu(); show("menu"); }
+  if(G.mode==="daily"){
+    if(G.replayDate){ buildRecords(); show("records"); }
+    else { refreshMenu(); show("menu"); }
+  }
   else { buildLevels(); show("levels"); }
 };
 $("winNext").onclick=()=>{
@@ -932,7 +1105,7 @@ $("winNext").onclick=()=>{
   $("winNext").textContent="下一关 ›";
   if(G.failPending){
     G.failPending=false;
-    if(G.mode==="daily") startDaily();
+    if(G.mode==="daily"){ G.replayDate ? startDailyReplay(G.replayDate) : startDaily(); }
     else if(G.mode==="endless") startEndless(G.endlessN);
     else startLevel(G.id);
   }

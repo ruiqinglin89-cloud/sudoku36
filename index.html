@@ -232,12 +232,13 @@
 
 <!-- 主菜单 -->
 <div id="menu" class="screen">
-  <div class="logo">数 独 闯 关<small id="logoSub"></small></div>
+  <div class="logo" id="logo" style="cursor:pointer">数 独 闯 关<small id="logoSub"></small></div>
   <button class="btn" id="btnStart">开始闯关</button>
   <button class="btn ghost" id="btnDaily">🗓️ 每日挑战</button>
   <button class="btn ghost" id="btnRecords">📖 每日留念</button>
   <button class="btn ghost" id="btnMural">🖼️ 图案回廊</button>
   <button class="btn ghost" id="btnAch">🏆 成就殿堂</button>
+  <button class="btn ghost" id="btnSound" style="font-size:13px;padding:8px 24px">🔊 音效：开</button>
   <button class="btn ghost" id="btnContinue">继续游戏</button>
     <div class="tip" id="progressTip"></div>
 </div>
@@ -310,6 +311,15 @@
   <div class="lv-scroll" id="achScroll"></div>
 </div>
 
+<!-- 每日寄语 / 晚安大小姐 -->
+<div id="cardModal" class="modal hidden">
+  <div class="card">
+    <h2 id="cardTitle"></h2>
+    <p id="cardBody" style="line-height:1.9"></p>
+    <div class="row" style="justify-content:center"><button class="btn" id="cardOk">收下祝福 🍀</button></div>
+  </div>
+</div>
+
 <!-- 通关弹窗 -->
 <div id="winModal" class="modal hidden">
   <div class="card">
@@ -360,6 +370,10 @@ save.trialNext = save.trialNext || {p:121, l:131, w:141, d:151};
 save.seenRules = save.seenRules || {};  // 已看过的玩法规则卡：{dots, killer, link}
 save.resume = save.resume || null;   // 断点续玩：未完成对局的完整快照
 save.stats = save.stats || {slain:0, perfect:0};  // 成就统计
+save.fortuneSeen = save.fortuneSeen || "";  // 今日寄语已读日期
+save.nightSeen = save.nightSeen || "";      // 晚安大小姐已读日期
+save.egg = !!save.egg;                   // 隐藏关已解锁
+save.sound = save.sound !== false;     // 音效开关（默认开）
 
 /* ---------- 界面切换 ---------- */
 const $ = id => document.getElementById(id);
@@ -408,6 +422,7 @@ function refreshMenu(){
   $("btnDaily").textContent = save.daily.done && save.daily.date === todayStr()
     ? "🗓️ 每日挑战 ✅ 已完成" : "🗓️ 每日挑战";
   $("btnRecords").textContent = save.king ? "👑 王室庆贺录" : "📖 每日留念";
+  $("btnSound").textContent = save.sound ? "🔊 音效：开" : "🔇 音效：关";
 }
 
 /* ---------- 选关 ---------- */
@@ -501,6 +516,20 @@ function buildLevels(){
       eg.appendChild(b);
     }
     sc.appendChild(eg);
+  }
+  /* 隐藏彩蛋关：logo 连点 5 次解锁后常驻 */
+  if(save.egg){
+    const eh = document.createElement("div");
+    eh.className = "tier";
+    eh.textContent = "🗝️ 彩蛋关 · 木木的礼物";
+    sc.appendChild(eh);
+    const egg = document.createElement("div"); egg.className = "grid36";
+    const b = document.createElement("button");
+    b.className = "lv current";
+    b.innerHTML = `<span style="font-size:20px">🗝️</span><span class="stars">${save.stats.egg ? "★★★" : "来玩我呀"}</span>`;
+    b.onclick = ()=>startEgg();
+    egg.appendChild(b);
+    sc.appendChild(egg);
   }
 }
 
@@ -720,6 +749,83 @@ const CELEB_P = [
 "九宫女官拜曰：吾王，您的战绩辉煌夺目！吾王万岁！","九宫女官拜曰：吾王，您的智慧深不见底！吾王万岁！","九宫女官拜曰：吾王，您的勇气可撼山岳！吾王万岁！","九宫女官拜曰：吾王，您的名字响彻数独大陆！吾王万岁！","九宫女官拜曰：吾王，您的光辉胜过朝阳！吾王万岁！",
 "九宫女官拜曰：吾王，您的从容稳如泰山！吾王万岁！","九宫女官拜曰：吾王，您的慷慨无人不赞！吾王万岁！","九宫女官拜曰：吾王，您的信誉重逾千金！吾王万岁！","九宫女官拜曰：吾王，您的谦逊令人折服！吾王万岁！","九宫女官拜曰：吾王，您的臣民永远追随！吾王万岁！",
 "九宫女官拜曰：吾王，您的王国永享太平！吾王万岁！","九宫女官拜曰：吾王，您的明日更加辉煌！吾王万岁！","九宫女官拜曰：吾王，您的每一层征途都写满传奇！吾王万岁！","九宫女官拜曰：吾王，九宫因您而生辉！吾王万岁！","九宫女官拜曰：吾王，您是这世间最好的王！吾王万岁！",
+];
+/* ---------- 今日寄语：370句日签，按日轮换一年不重样 ---------- */
+const FORTUNE_P = [
+"今日寄语：宜解数独，忌熬夜","今日寄语：运气满格，随便赢","今日寄语：适合穿最喜欢的那条裙子","今日寄语：会有小小的惊喜发生","今日寄语：第一题就会异常顺利",
+"今日寄语：宜大笑三次","今日寄语：会有人偷偷觉得你今天很好看","今日寄语：适合喝一杯热牛奶","今日寄语：幸运数字是 7","今日寄语：宜奖励自己一块小蛋糕",
+"今日寄语：难题见了你都会绕道走","今日寄语：适合哼着歌走路","今日寄语：会收获一句真心的夸奖","今日寄语：宜早睡早起养足精神","今日寄语：心想事成的概率是 99%",
+"今日寄语：连风都会站在你这边","今日寄语：适合把头发扎得漂漂亮亮","今日寄语：今天的你比昨天更厉害一点","今日寄语：宜和朋友分享一个好玩的","今日寄语：灵感会像泡泡一样冒出来",
+"今日寄语：适合解开一道最难的题","今日寄语：连王斩都会比平时更锋利","今日寄语：宜收集一朵今天的云","今日寄语：会有意想不到的好消息","今日寄语：今天的笑容特别值钱",
+"今日寄语：适合给未来的自己存一份开心","今日寄语：宜把烦恼折成纸飞机扔掉","今日寄语：今天的直觉准得惊人","今日寄语：会遇见一件温柔的小事","今日寄语：宜慢慢走，欣赏沿途",
+"今日寄语：今天的你自带主角光环","今日寄语：适合做一件小小的善事","今日寄语：好运正在排队来找你","今日寄语：宜向喜欢的人问好","今日寄语：今天的每一格都会填得很顺",
+"今日寄语：适合把房间收拾得香香的","今日寄语：宜早点完成作业再痛快玩","木木，今天宜解数独，忌熬夜","木木，今天运气满格，随便赢","木木，今天适合穿最喜欢的那条裙子",
+"木木，今天会有小小的惊喜发生","木木，今天第一题就会异常顺利","木木，今天宜大笑三次","木木，今天会有人偷偷觉得你今天很好看","木木，今天适合喝一杯热牛奶",
+"木木，今天幸运数字是 7","木木，今天宜奖励自己一块小蛋糕","木木，今天难题见了你都会绕道走","木木，今天适合哼着歌走路","木木，今天会收获一句真心的夸奖",
+"木木，今天宜早睡早起养足精神","木木，今天心想事成的概率是 99%","木木，今天连风都会站在你这边","木木，今天适合把头发扎得漂漂亮亮","木木，今天今天的你比昨天更厉害一点",
+"木木，今天宜和朋友分享一个好玩的","木木，今天灵感会像泡泡一样冒出来","木木，今天适合解开一道最难的题","木木，今天连王斩都会比平时更锋利","木木，今天宜收集一朵今天的云",
+"木木，今天会有意想不到的好消息","木木，今天今天的笑容特别值钱","木木，今天适合给未来的自己存一份开心","木木，今天宜把烦恼折成纸飞机扔掉","木木，今天今天的直觉准得惊人",
+"木木，今天会遇见一件温柔的小事","木木，今天宜慢慢走，欣赏沿途","木木，今天今天的你自带主角光环","木木，今天适合做一件小小的善事","木木，今天好运正在排队来找你",
+"木木，今天宜向喜欢的人问好","木木，今天今天的每一格都会填得很顺","木木，今天适合把房间收拾得香香的","木木，今天宜早点完成作业再痛快玩","今日运势：宜解数独，忌熬夜",
+"今日运势：运气满格，随便赢","今日运势：适合穿最喜欢的那条裙子","今日运势：会有小小的惊喜发生","今日运势：第一题就会异常顺利","今日运势：宜大笑三次",
+"今日运势：会有人偷偷觉得你今天很好看","今日运势：适合喝一杯热牛奶","今日运势：幸运数字是 7","今日运势：宜奖励自己一块小蛋糕","今日运势：难题见了你都会绕道走",
+"今日运势：适合哼着歌走路","今日运势：会收获一句真心的夸奖","今日运势：宜早睡早起养足精神","今日运势：心想事成的概率是 99%","今日运势：连风都会站在你这边",
+"今日运势：适合把头发扎得漂漂亮亮","今日运势：今天的你比昨天更厉害一点","今日运势：宜和朋友分享一个好玩的","今日运势：灵感会像泡泡一样冒出来","今日运势：适合解开一道最难的题",
+"今日运势：连王斩都会比平时更锋利","今日运势：宜收集一朵今天的云","今日运势：会有意想不到的好消息","今日运势：今天的笑容特别值钱","今日运势：适合给未来的自己存一份开心",
+"今日运势：宜把烦恼折成纸飞机扔掉","今日运势：今天的直觉准得惊人","今日运势：会遇见一件温柔的小事","今日运势：宜慢慢走，欣赏沿途","今日运势：今天的你自带主角光环",
+"今日运势：适合做一件小小的善事","今日运势：好运正在排队来找你","今日运势：宜向喜欢的人问好","今日运势：今天的每一格都会填得很顺","今日运势：适合把房间收拾得香香的",
+"今日运势：宜早点完成作业再痛快玩","星星说，今天宜解数独，忌熬夜","星星说，今天运气满格，随便赢","星星说，今天适合穿最喜欢的那条裙子","星星说，今天会有小小的惊喜发生",
+"星星说，今天第一题就会异常顺利","星星说，今天宜大笑三次","星星说，今天会有人偷偷觉得你今天很好看","星星说，今天适合喝一杯热牛奶","星星说，今天幸运数字是 7",
+"星星说，今天宜奖励自己一块小蛋糕","星星说，今天难题见了你都会绕道走","星星说，今天适合哼着歌走路","星星说，今天会收获一句真心的夸奖","星星说，今天宜早睡早起养足精神",
+"星星说，今天心想事成的概率是 99%","星星说，今天连风都会站在你这边","星星说，今天适合把头发扎得漂漂亮亮","星星说，今天今天的你比昨天更厉害一点","星星说，今天宜和朋友分享一个好玩的",
+"星星说，今天灵感会像泡泡一样冒出来","星星说，今天适合解开一道最难的题","星星说，今天连王斩都会比平时更锋利","星星说，今天宜收集一朵今天的云","星星说，今天会有意想不到的好消息",
+"星星说，今天今天的笑容特别值钱","星星说，今天适合给未来的自己存一份开心","星星说，今天宜把烦恼折成纸飞机扔掉","星星说，今天今天的直觉准得惊人","星星说，今天会遇见一件温柔的小事",
+"星星说，今天宜慢慢走，欣赏沿途","星星说，今天今天的你自带主角光环","星星说，今天适合做一件小小的善事","星星说，今天好运正在排队来找你","星星说，今天宜向喜欢的人问好",
+"星星说，今天今天的每一格都会填得很顺","星星说，今天适合把房间收拾得香香的","星星说，今天宜早点完成作业再痛快玩","小日历偷偷告诉木木：宜解数独，忌熬夜","小日历偷偷告诉木木：运气满格，随便赢",
+"小日历偷偷告诉木木：适合穿最喜欢的那条裙子","小日历偷偷告诉木木：会有小小的惊喜发生","小日历偷偷告诉木木：第一题就会异常顺利","小日历偷偷告诉木木：宜大笑三次","小日历偷偷告诉木木：会有人偷偷觉得你今天很好看",
+"小日历偷偷告诉木木：适合喝一杯热牛奶","小日历偷偷告诉木木：幸运数字是 7","小日历偷偷告诉木木：宜奖励自己一块小蛋糕","小日历偷偷告诉木木：难题见了你都会绕道走","小日历偷偷告诉木木：适合哼着歌走路",
+"小日历偷偷告诉木木：会收获一句真心的夸奖","小日历偷偷告诉木木：宜早睡早起养足精神","小日历偷偷告诉木木：心想事成的概率是 99%","小日历偷偷告诉木木：连风都会站在你这边","小日历偷偷告诉木木：适合把头发扎得漂漂亮亮",
+"小日历偷偷告诉木木：今天的你比昨天更厉害一点","小日历偷偷告诉木木：宜和朋友分享一个好玩的","小日历偷偷告诉木木：灵感会像泡泡一样冒出来","小日历偷偷告诉木木：适合解开一道最难的题","小日历偷偷告诉木木：连王斩都会比平时更锋利",
+"小日历偷偷告诉木木：宜收集一朵今天的云","小日历偷偷告诉木木：会有意想不到的好消息","小日历偷偷告诉木木：今天的笑容特别值钱","小日历偷偷告诉木木：适合给未来的自己存一份开心","小日历偷偷告诉木木：宜把烦恼折成纸飞机扔掉",
+"小日历偷偷告诉木木：今天的直觉准得惊人","小日历偷偷告诉木木：会遇见一件温柔的小事","小日历偷偷告诉木木：宜慢慢走，欣赏沿途","小日历偷偷告诉木木：今天的你自带主角光环","小日历偷偷告诉木木：适合做一件小小的善事",
+"小日历偷偷告诉木木：好运正在排队来找你","小日历偷偷告诉木木：宜向喜欢的人问好","小日历偷偷告诉木木：今天的每一格都会填得很顺","小日历偷偷告诉木木：适合把房间收拾得香香的","小日历偷偷告诉木木：宜早点完成作业再痛快玩",
+"今天也是宜解数独，忌熬夜的一天","今天也是运气满格，随便赢的一天","今天也是适合穿最喜欢的那条裙子的一天","今天也是会有小小的惊喜发生的一天","今天也是第一题就会异常顺利的一天",
+"今天也是宜大笑三次的一天","今天也是会有人偷偷觉得你今天很好看的一天","今天也是适合喝一杯热牛奶的一天","今天也是幸运数字是 7的一天","今天也是宜奖励自己一块小蛋糕的一天",
+"今天也是难题见了你都会绕道走的一天","今天也是适合哼着歌走路的一天","今天也是会收获一句真心的夸奖的一天","今天也是宜早睡早起养足精神的一天","今天也是心想事成的概率是 99%的一天",
+"今天也是连风都会站在你这边的一天","今天也是适合把头发扎得漂漂亮亮的一天","今天也是今天的你比昨天更厉害一点的一天","今天也是宜和朋友分享一个好玩的的一天","今天也是灵感会像泡泡一样冒出来的一天",
+"今天也是适合解开一道最难的题的一天","今天也是连王斩都会比平时更锋利的一天","今天也是宜收集一朵今天的云的一天","今天也是会有意想不到的好消息的一天","今天也是今天的笑容特别值钱的一天",
+"今天也是适合给未来的自己存一份开心的一天","今天也是宜把烦恼折成纸飞机扔掉的一天","今天也是今天的直觉准得惊人的一天","今天也是会遇见一件温柔的小事的一天","今天也是宜慢慢走，欣赏沿途的一天",
+"今天也是今天的你自带主角光环的一天","今天也是适合做一件小小的善事的一天","今天也是好运正在排队来找你的一天","今天也是宜向喜欢的人问好的一天","今天也是今天的每一格都会填得很顺的一天",
+"今天也是适合把房间收拾得香香的的一天","今天也是宜早点完成作业再痛快玩的一天","今日的木木：宜解数独，忌熬夜","今日的木木：运气满格，随便赢","今日的木木：适合穿最喜欢的那条裙子",
+"今日的木木：会有小小的惊喜发生","今日的木木：第一题就会异常顺利","今日的木木：宜大笑三次","今日的木木：会有人偷偷觉得你今天很好看","今日的木木：适合喝一杯热牛奶",
+"今日的木木：幸运数字是 7","今日的木木：宜奖励自己一块小蛋糕","今日的木木：难题见了你都会绕道走","今日的木木：适合哼着歌走路","今日的木木：会收获一句真心的夸奖",
+"今日的木木：宜早睡早起养足精神","今日的木木：心想事成的概率是 99%","今日的木木：连风都会站在你这边","今日的木木：适合把头发扎得漂漂亮亮","今日的木木：今天的你比昨天更厉害一点",
+"今日的木木：宜和朋友分享一个好玩的","今日的木木：灵感会像泡泡一样冒出来","今日的木木：适合解开一道最难的题","今日的木木：连王斩都会比平时更锋利","今日的木木：宜收集一朵今天的云",
+"今日的木木：会有意想不到的好消息","今日的木木：今天的笑容特别值钱","今日的木木：适合给未来的自己存一份开心","今日的木木：宜把烦恼折成纸飞机扔掉","今日的木木：今天的直觉准得惊人",
+"今日的木木：会遇见一件温柔的小事","今日的木木：宜慢慢走，欣赏沿途","今日的木木：今天的你自带主角光环","今日的木木：适合做一件小小的善事","今日的木木：好运正在排队来找你",
+"今日的木木：宜向喜欢的人问好","今日的木木：今天的每一格都会填得很顺","今日的木木：适合把房间收拾得香香的","今日的木木：宜早点完成作业再痛快玩","听说今天宜解数独，忌熬夜",
+"听说今天运气满格，随便赢","听说今天适合穿最喜欢的那条裙子","听说今天会有小小的惊喜发生","听说今天第一题就会异常顺利","听说今天宜大笑三次",
+"听说今天会有人偷偷觉得你今天很好看","听说今天适合喝一杯热牛奶","听说今天幸运数字是 7","听说今天宜奖励自己一块小蛋糕","听说今天难题见了你都会绕道走",
+"听说今天适合哼着歌走路","听说今天会收获一句真心的夸奖","听说今天宜早睡早起养足精神","听说今天心想事成的概率是 99%","听说今天连风都会站在你这边",
+"听说今天适合把头发扎得漂漂亮亮","听说今天今天的你比昨天更厉害一点","听说今天宜和朋友分享一个好玩的","听说今天灵感会像泡泡一样冒出来","听说今天适合解开一道最难的题",
+"听说今天连王斩都会比平时更锋利","听说今天宜收集一朵今天的云","听说今天会有意想不到的好消息","听说今天今天的笑容特别值钱","听说今天适合给未来的自己存一份开心",
+"听说今天宜把烦恼折成纸飞机扔掉","听说今天今天的直觉准得惊人","听说今天会遇见一件温柔的小事","听说今天宜慢慢走，欣赏沿途","听说今天今天的你自带主角光环",
+"听说今天适合做一件小小的善事","听说今天好运正在排队来找你","听说今天宜向喜欢的人问好","听说今天今天的每一格都会填得很顺","听说今天适合把房间收拾得香香的",
+"听说今天宜早点完成作业再痛快玩","晨光说，宜解数独，忌熬夜","晨光说，运气满格，随便赢","晨光说，适合穿最喜欢的那条裙子","晨光说，会有小小的惊喜发生",
+"晨光说，第一题就会异常顺利","晨光说，宜大笑三次","晨光说，会有人偷偷觉得你今天很好看","晨光说，适合喝一杯热牛奶","晨光说，幸运数字是 7",
+"晨光说，宜奖励自己一块小蛋糕","晨光说，难题见了你都会绕道走","晨光说，适合哼着歌走路","晨光说，会收获一句真心的夸奖","晨光说，宜早睡早起养足精神",
+"晨光说，心想事成的概率是 99%","晨光说，连风都会站在你这边","晨光说，适合把头发扎得漂漂亮亮","晨光说，今天的你比昨天更厉害一点","晨光说，宜和朋友分享一个好玩的",
+"晨光说，灵感会像泡泡一样冒出来","晨光说，适合解开一道最难的题","晨光说，连王斩都会比平时更锋利","晨光说，宜收集一朵今天的云","晨光说，会有意想不到的好消息",
+"晨光说，今天的笑容特别值钱","晨光说，适合给未来的自己存一份开心","晨光说，宜把烦恼折成纸飞机扔掉","晨光说，今天的直觉准得惊人","晨光说，会遇见一件温柔的小事",
+"晨光说，宜慢慢走，欣赏沿途","晨光说，今天的你自带主角光环","晨光说，适合做一件小小的善事","晨光说，好运正在排队来找你","晨光说，宜向喜欢的人问好",
+"晨光说，今天的每一格都会填得很顺","晨光说，适合把房间收拾得香香的","晨光说，宜早点完成作业再痛快玩","今日份的幸运：宜解数独，忌熬夜","今日份的幸运：运气满格，随便赢",
+"今日份的幸运：适合穿最喜欢的那条裙子","今日份的幸运：会有小小的惊喜发生","今日份的幸运：第一题就会异常顺利","今日份的幸运：宜大笑三次","今日份的幸运：会有人偷偷觉得你今天很好看",
+"今日份的幸运：适合喝一杯热牛奶","今日份的幸运：幸运数字是 7","今日份的幸运：宜奖励自己一块小蛋糕","今日份的幸运：难题见了你都会绕道走","今日份的幸运：适合哼着歌走路",
+"今日份的幸运：会收获一句真心的夸奖","今日份的幸运：宜早睡早起养足精神","今日份的幸运：心想事成的概率是 99%","今日份的幸运：连风都会站在你这边","今日份的幸运：适合把头发扎得漂漂亮亮",
+"今日份的幸运：今天的你比昨天更厉害一点","今日份的幸运：宜和朋友分享一个好玩的","今日份的幸运：灵感会像泡泡一样冒出来","今日份的幸运：适合解开一道最难的题","今日份的幸运：连王斩都会比平时更锋利",
+"今日份的幸运：宜收集一朵今天的云","今日份的幸运：会有意想不到的好消息","今日份的幸运：今天的笑容特别值钱","今日份的幸运：适合给未来的自己存一份开心","今日份的幸运：宜把烦恼折成纸飞机扔掉",
+"今日份的幸运：今天的直觉准得惊人","今日份的幸运：会遇见一件温柔的小事","今日份的幸运：宜慢慢走，欣赏沿途","今日份的幸运：今天的你自带主角光环","今日份的幸运：适合做一件小小的善事",
+"今日份的幸运：好运正在排队来找你","今日份的幸运：宜向喜欢的人问好","今日份的幸运：今天的每一格都会填得很顺","今日份的幸运：适合把房间收拾得香香的","今日份的幸运：宜早点完成作业再痛快玩",
 ];
 function celebFor(dateStr){
   const y = +dateStr.slice(0,4), m = +dateStr.slice(4,6), d = +dateStr.slice(6,8);
@@ -1189,7 +1295,7 @@ const G = {
   t0:0, timer:null, paused:false,
   kingMode:false, limit:0, mleft:0, monsters:[],
   gotoKing:false, gotoEndless:false, failPending:false, endlessN:0, replayDate:null,
-  gotoTrial:0, hintPreview:null, bannerT:null,
+  gotoTrial:0, hintPreview:null, bannerT:null, combo:0,
   variant:"classic",   // classic / dots / killer
   dots:null, cages:null, cageOf:null,
   ccells:{}, cgroups:null, cdone:{},
@@ -1318,6 +1424,7 @@ function initGame(puzzle, solution, title, mode, extra){
   G.timer = setInterval(tick, 1000); tick();
   save.resume = null;
   show("game");
+  if(save.sound) bgmToggle(true);
 }
 function startLevel(id){
   const p = PUZZLES.find(x => x.id === id);
@@ -1538,6 +1645,128 @@ function startEndless(n){
   G.id = 1000 + n; G.endlessN = n;
   initGame(d.puzzle, d.solution, `♾️ 无尽征途 · 第${n}层`, "endless");
 }
+/* ---------- 彩蛋：今日寄语 / 晚安大小姐 / 连击烟花 / 隐藏关 ---------- */
+const NIGHT_P = [
+  "呀嘞呀嘞，还不睡觉的大小姐真是惹人喜爱呢",
+  "大小姐，夜深了，最后玩一局就睡哦",
+  "大小姐的眼睛该休息了，在下为您留一盏小夜灯",
+  "夜已深，大小姐的聪慧明日依旧闪耀",
+  "呀嘞呀嘞，被发现在熬夜了吧，大小姐",
+];
+const cardQueue = [];
+function queueCard(title, body, btn){ cardQueue.push({title, body, btn}); nextCard(); }
+function nextCard(){
+  if(!$("cardModal").classList.contains("hidden")) return;   // 已有卡片在显示，等点掉
+  const c = cardQueue.shift();
+  if(!c) return;
+  $("cardTitle").textContent = c.title;
+  $("cardBody").innerHTML = c.body;
+  $("cardOk").textContent = c.btn;
+  $("cardModal").classList.remove("hidden");
+}
+function maybeDailyCards(){
+  const h = new Date().getHours();
+  if(save.fortuneSeen !== todayStr()){
+    save.fortuneSeen = todayStr(); store();
+    const y=+todayStr().slice(0,4), m=+todayStr().slice(4,6), d=+todayStr().slice(6,8);
+    const doy=Math.floor((Date.UTC(y,m-1,d)-Date.UTC(y,0,1))/86400000);
+    queueCard("📅 今日寄语", FORTUNE_P[doy % FORTUNE_P.length], "收下今日好运 🍀");
+  }
+  if((h >= 23 || h < 5) && save.nightSeen !== todayStr()){
+    save.nightSeen = todayStr(); store();
+    const line = NIGHT_P[(+todayStr()) % NIGHT_P.length];
+    queueCard("🌙 晚安，大小姐", line + "<br><span style='font-size:12px;color:var(--dim)'>早点休息，明天的每日挑战等着你</span>", "这就去睡 🌙");
+  }
+}
+/* 连击烟花：连续 10 次正确输入 */
+function fireworks(){
+  const ov = document.createElement("div");
+  ov.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:80";
+  const colors = ["#ffd66b","#ff8ad0","#5b8cff","#3ddc97","#ff6b7a"];
+  for(let burst = 0; burst < 3; burst++){
+    const bx = 20 + Math.random()*60, by = 18 + Math.random()*40;
+    for(let i = 0; i < 24; i++){
+      const p = document.createElement("div");
+      const ang = (i/24) * Math.PI * 2, dist = 60 + Math.random()*90;
+      p.style.cssText = `position:absolute;left:${bx}vw;top:${by}vh;width:6px;height:6px;border-radius:50%;background:${colors[i%5]};transition:transform 1.2s ease-out,opacity 1.2s;`;
+      ov.appendChild(p);
+      setTimeout(()=>{ p.style.transform = `translate(${Math.cos(ang)*dist}px,${Math.sin(ang)*dist}px)`; p.style.opacity = "0"; }, burst*220 + 30);
+    }
+  }
+  document.body.appendChild(ov);
+  setTimeout(()=>ov.remove(), 2400);
+  sfxSparkle();
+}
+/* 隐藏关：logo 连点 5 次 */
+let logoTaps = 0, logoTapT = 0;
+function logoTap(){
+  const now = Date.now();
+  if(now - logoTapT > 2500) logoTaps = 0;
+  logoTapT = now; logoTaps++;
+  if(logoTaps >= 5){
+    logoTaps = 0;
+    if(!save.egg){ save.egg = true; store(); }
+    startEgg();
+  }
+}
+function genEgg(){
+  const rng = mulberry32(424243);
+  const sol = sdMakeSolution(rng);
+  const puz = sdCarve(sol, 30, rng);
+  return {puzzle: puz.map(r=>r.join("")).join(""), solution: sol.map(r=>r.join("")).join("")};
+}
+function startEgg(){
+  const d = genEgg();
+  G.id = 0;
+  initGame(d.puzzle, d.solution, "🗝️ 彩蛋关 · 木木的礼物", "egg");
+}
+
+/* ---------- WebAudio 音效与轻音乐（本地合成，零文件） ---------- */
+let AC = null, bgmTimer = null;
+function ac(){
+  if(!save.sound) return null;
+  const ACtor = (typeof window !== "undefined") && (window.AudioContext || window.webkitAudioContext);
+  if(!ACtor) return null;
+  if(!AC) AC = new ACtor();
+  if(AC.state === "suspended") AC.resume();
+  return AC;
+}
+function tone(freq, delay, dur, type, vol){
+  const ctx = ac(); if(!ctx) return;
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type; o.frequency.value = freq;
+  const t = ctx.currentTime + delay;
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(vol, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+function sfxPling(){ tone(880, 0, .18, "sine", .10); tone(1318.5, .04, .14, "sine", .05); }
+function sfxErr(){ tone(170, 0, .18, "sawtooth", .05); }
+function sfxWhoosh(){ tone(1300, 0, .06, "triangle", .08); tone(700, .05, .08, "triangle", .08); tone(300, .1, .12, "triangle", .06); }
+function sfxChime(){ tone(1568, 0, .14, "sine", .08); tone(2093, .07, .2, "sine", .06); }
+function sfxFanfare(){ [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, i * .12, .3, "triangle", .10)); tone(1318.5, .5, .5, "sine", .08); }
+function sfxSparkle(){ [2093, 2637, 3136].forEach((f, i) => tone(f, i * .09, .25, "sine", .05)); }
+const BGM_SCALE = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.5];
+let bgmStep = 0, bgmPos = 2;
+const bgmRng = mulberry32(20261112);
+function bgmTick(){
+  if(!AC) return;
+  const stepDur = 0.42;
+  bgmPos += [-1, -1, 0, 1, 1][Math.floor(bgmRng() * 5)];
+  if(bgmPos < 0) bgmPos = 0;
+  if(bgmPos >= BGM_SCALE.length) bgmPos = BGM_SCALE.length - 1;
+  tone(BGM_SCALE[bgmPos], 0, 1.1, "sine", 0.028);
+  if(bgmStep % 8 === 0) tone(130.81 * (bgmStep % 16 === 0 ? 1 : 1.5), 0, 1.6, "sine", 0.02);
+  bgmStep++;
+}
+function bgmToggle(force){
+  if(force === false || bgmTimer){
+    clearInterval(bgmTimer); bgmTimer = null; return;
+  }
+  if(ac()){ bgmStep = 0; bgmTimer = setInterval(bgmTick, 420); }
+}
 function tick(){
   if(G.paused) return;
   const s = Math.floor((Date.now()-G.t0)/1000);
@@ -1690,6 +1919,9 @@ function inputNum(v){
   G.notes[i].clear();
   if(v === +G.solution[i]){
     G.err[i]=false;
+    G.combo++;
+    sfxPling();
+    if(G.combo > 0 && G.combo % 10 === 0) fireworks();
     // 自动清理同行列宫的笔记
     const r=i/9|0, c=i%9;
     for(let j=0;j<81;j++){
@@ -1699,6 +1931,8 @@ function inputNum(v){
     }
   }else{
     G.err[i]=true; G.mistakes++;
+    G.combo = 0;
+    sfxErr();
     if(navigator.vibrate) navigator.vibrate(60);
     if(G.kingMode){
       G.mleft--;
@@ -1838,6 +2072,7 @@ function checkRegions(i){
 function killMonster(m){
   m.alive = false;
   save.stats.slain = (save.stats.slain||0) + 1;
+  sfxWhoosh();
   G.mleft = Math.min(G.limit, G.mleft+1);   // 王斩吞噬怪物，重获错误次数
   updateMonBar();
   slayFx(m);
@@ -1886,6 +2121,7 @@ function checkConnections(i){
   const g = G.cgroups[col];
   if(g.every(c => G.grid[c] === +G.solution[c])){
     G.cdone[col] = true;
+    sfxChime();
     drawConnect(g, col);
     const f = document.createElement("div");
     f.className = "slay";
@@ -1950,6 +2186,7 @@ const ACH = [
   {icon:"♾️", name:"无尽十层", cond: s => s.endless.current > 10},
   {icon:"🖼️", name:"首幅完整图案", cond: s => TRIALS.some(th => PUZZLES.filter(p=>p.tier===th.tier && s.stars[p.id]).length >= 10)},
   {icon:"🏞️", name:"四图集齐", cond: s => TRIALS.every(th => PUZZLES.filter(p=>p.tier===th.tier && s.stars[p.id]).length >= 10)},
+  {icon:"🗝️", name:"彩蛋猎人", secret:true, cond: s => !!(s.stats && s.stats.egg)},
 ];
 function buildAch(){
   const sc = $("achScroll"); sc.innerHTML = "";
@@ -1965,7 +2202,7 @@ function buildAch(){
     const on = a.cond(save);
     const d = document.createElement("div");
     d.className = "ach" + (on ? " lit" : "");
-    d.innerHTML = `<div class="ico">${a.icon}</div><div class="nm">${a.name}</div>`;
+    d.innerHTML = `<div class="ico">${on || !a.secret ? a.icon : "❓"}</div><div class="nm">${on || !a.secret ? a.name : "？？？"}</div>`;
     g.appendChild(d);
   });
   sc.appendChild(g);
@@ -2106,6 +2343,7 @@ function checkWin(){
   for(let i=0;i<81;i++) if(G.grid[i]!==+G.solution[i]) return;
   clearInterval(G.timer);
   clearResume();
+  sfxFanfare();
   if(G.mistakes===0) save.stats.perfect=(save.stats.perfect||0)+1;
   const sec=Math.floor((Date.now()-G.t0)/1000);
   $("winStars").style.fontSize="";
@@ -2155,6 +2393,17 @@ function checkWin(){
     $("winInfo").innerHTML=`♾️ 无尽征途 · 第${n}层<br>用时 ${Math.floor(sec/60)}分${sec%60}秒 · 错误 ${G.mistakes} 次 · 提示剩 ${G.hintsLeft} 次<br>⚔️ 王斩讨伐怪物 ${killed}/27${starWhy.length?`<br><span style="opacity:.75">扣星：${starWhy.join("、")}</span>`:""}${royal}<br>第${n+1}层已开启，此层将永久保留`;
     $("winNext").textContent="下一层 ›";
     $("winNext").style.display="";
+    setTimeout(()=>$("winModal").classList.remove("hidden"), 500);
+    return;
+  }
+  if(G.mode==="egg"){
+    save.stats.egg = 1; store();
+    $("winTitle").textContent="🎉 木木发现了隐藏彩蛋！";
+    $("winStars").textContent="🗝️";
+    $("winStars").style.fontSize="60px";
+    $("winInfo").innerHTML=`彩蛋关通关！<br>用时 ${Math.floor(sec/60)}分${sec%60}秒 · 错误 ${G.mistakes} 次<br>这题是只属于你的小秘密<br>隐藏成就「彩蛋猎人」已点亮`;
+    $("winNext").style.display="none";
+    $("winMenu").textContent="选关";
     setTimeout(()=>$("winModal").classList.remove("hidden"), 500);
     return;
   }
@@ -2241,6 +2490,14 @@ $("btnMural").onclick=()=>{ buildMurals(); show("murals"); };
 $("btnAch").onclick=()=>{ buildAch(); show("ach"); };
 $("achBack").onclick=()=>{ refreshMenu(); show("menu"); };
 $("winShare").onclick=shareCard;
+$("logo").onclick=logoTap;
+$("cardOk").onclick=()=>{ $("cardModal").classList.add("hidden"); nextCard(); };
+$("btnSound").onclick=()=>{
+  save.sound = !save.sound; store();
+  if(!save.sound) bgmToggle(false);
+  else if(!$("game").classList.contains("hidden")) bgmToggle(true);
+  refreshMenu();
+};
 $("muBack").onclick=()=>{ refreshMenu(); show("menu"); };
 $("ruleOk").onclick=()=>{ $("ruleModal").classList.add("hidden"); };
 $("gRule").onclick=()=>{ showRule(G.variant); };
@@ -2248,6 +2505,7 @@ $("rcBack").onclick=()=>{ refreshMenu(); show("menu"); };
 $("lvBack").onclick=()=>{ refreshMenu(); show("menu"); };
 $("gBack").onclick=()=>{
   clearInterval(G.timer);
+  bgmToggle(false);
   if(G.mode==="daily"){
     if(G.replayDate){ buildRecords(); show("records"); }
     else { refreshMenu(); show("menu"); }
@@ -2262,6 +2520,7 @@ $("winMenu").onclick=()=>{
   $("winModal").classList.add("hidden");
   $("winMenu").textContent="选关";
   $("winNext").textContent="下一关 ›";
+  bgmToggle(false);
   if(G.mode==="daily"){
     if(G.replayDate){ buildRecords(); show("records"); }
     else { refreshMenu(); show("menu"); }
@@ -2304,6 +2563,7 @@ document.addEventListener("gesturestart",e=>e.preventDefault());
 
 refreshMenu();
 show("menu");
+setTimeout(maybeDailyCards, 500);
 </script>
 </body>
 </html>
